@@ -1,0 +1,33 @@
+# ========================
+# ENVIRONMENT VARIABLES
+# ========================
+.env
+.env.backup
+.env.production
+
+# ========================
+# GOLANG BINARIES & BUILD
+# ========================
+# Hasil build aplikasi tidak perlu di-push
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+main
+coffeeshop-api
+
+# ========================
+# IDE / TEXT EDITOR
+# ========================
+# Pengaturan lokal VS Code (opsional, tapi disarankan di-ignore)
+.vscode/
+
+# ========================
+# OS GENERATED FILES
+# ========================
+.DS_Store
+Thumbs.db
