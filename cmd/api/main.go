@@ -26,11 +26,11 @@ func main() {
 
 	productRepo := repository.NewProductRepository(db)
 	productService := service.NewProductService(productRepo)
-	productHandler := api.NewProductHandler(productService)
+	productHandler := handler.NewProductHandler(productService)
 
 	r := gin.Default()
 
-	api.SetupRouter(r, productHandler)
+	handler.SetupRouter(r, productHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
