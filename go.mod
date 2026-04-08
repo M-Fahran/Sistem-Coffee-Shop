@@ -1,4 +1,4 @@
-module coffeeshop-api
+module coffeeshop
 
 go 1.25.1
 

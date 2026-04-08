@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Fungsi khusus untuk setup DB
 func SetupDatabase() *pgxpool.Pool {
 	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"),
