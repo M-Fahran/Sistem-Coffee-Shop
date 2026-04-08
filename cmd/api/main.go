@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"coffeeshop/internal/api"
+	"coffeeshop/internal/delivery"
 	"coffeeshop/internal/config"
 	"coffeeshop/internal/repository"
 	"coffeeshop/internal/service"
