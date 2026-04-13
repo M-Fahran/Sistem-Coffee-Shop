@@ -8,7 +8,7 @@ CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'ready', 
 -- 2. Create Tables
 CREATE TABLE "users" (
   "id" BIGSERIAL PRIMARY KEY,
-  "name" varchar(100),
+  "email" varchar(100),
   "username" varchar(50) UNIQUE,
   "password" varchar(255),
   "role" user_role,
