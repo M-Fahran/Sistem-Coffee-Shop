@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"coffeeshop/internal/entity"
 	"coffeeshop/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -25,24 +26,24 @@ func NewUserService(repo *repository.UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
-func (s *UserService) Auth(ctx context.Context, req LoginRequest) (string, error) {
+func (s *UserService) Auth(ctx context.Context, req LoginRequest) (*entity.User, string, error) {
 	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err != nil {
-		return "", errors.New("email atau password salah")
+		return nil, "", err
 	}
 
 	if !user.IsActive {
-		return 	"", errors.New("akun ini sedang dinonaktifkan")
+		return nil, 	"", errors.New("akun ini sedang dinonaktifkan")
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
 	if err != nil {
-		return "", errors.New("email atau password salah")
+		return nil, "", errors.New("bcrypt gagal")
 	}
 
 	secretKey := os.Getenv("JWT_SECRET")
 	if secretKey == "" {
-		return "", errors.New("pengaturan server belum lengkap (JWT_SECRET hilang)")
+		return nil, "", errors.New("pengaturan server belum lengkap (JWT_SECRET hilang)")
 	}
 
 	claims := jwt.MapClaims{
@@ -54,8 +55,8 @@ func (s *UserService) Auth(ctx context.Context, req LoginRequest) (string, error
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString([]byte(secretKey))
 	if err != nil {
-		return "", errors.New("gagal proses login")
+		return nil, "", errors.New("gagal proses login")
 	}
 
-	return signedToken, nil
+	return user, signedToken, nil
 }

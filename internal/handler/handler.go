@@ -2,19 +2,19 @@ package handler
 
 import (
 	"coffeeshop/internal/service"
-	"encoding/json"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	// "github.com/gin-gonic/gin"
 	// "github.com/redis/go-redis/v9/internal/interfaces"
 )
 
-type ProductHandler struct {
-	productService service.ProductService
-}
+// type ProductHandler struct {
+// 	productService service.ProductService
+// }
 
 type UserHandler struct {
-	service *service.UserService
+	userService *service.UserService
 }
 
 // func NewProductHandler(ps service.ProductService) *ProductHandler {
@@ -25,7 +25,7 @@ type UserHandler struct {
 
 // func (h *ProductHandler) GetMenu(c *gin.Context) {
 // 	products, err := h.productService.GetAvailableMenu(c.Request.Context())
-	
+
 // 	if err != nil {
 // 		c.JSON(http.StatusInternalServerError, gin.H{
 // 			"status": "error",
@@ -42,7 +42,7 @@ type UserHandler struct {
 // }
 
 // func GetMenuHandler(c *gin.Context) {
-	
+
 // 	c.JSON(http.StatusOK, gin.H{
 // 		"message": "Ini adalah daftar menu coffee shop",
 // 		"data": []string{"Americano", "Latte", "Cappuccino"},
@@ -55,30 +55,32 @@ type UserHandler struct {
 // 	})
 // }
 
-func NewUserHandler(service *service.UserService) *UserHandler {
-	return &UserHandler{
-		service: service,
-	}
+func NewUserHandler(userService *service.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
-func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+func (h *UserHandler) Login(c *gin.Context) {
 	var req service.LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "format tidak valid", http.StatusBadRequest)
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format JSON tidak valid"})
 		return
 	}
 
-	token, err := h.service.Auth(r.Context(), req)
-
+	UserHandler, token, err := h.userService.Auth(c.Request.Context(), req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message" : "login berhasil",
-		"token" : token,
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login berhasil",
+		"token":   token,
+		"data": gin.H{
+			"id":       UserHandler.ID,
+			"email":    UserHandler.Email,
+			"username": UserHandler.Username,
+			"role":     UserHandler.Role,
+		},
 	})
 }

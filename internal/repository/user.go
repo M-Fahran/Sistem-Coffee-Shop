@@ -5,13 +5,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepository struct {
-	db *sql.DB
+	db *pgxpool.Pool
 }
 
-func NewUserRepository(db *sql.DB) *UserRepository {
+func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{
 		db: db,
 	}
@@ -19,12 +21,12 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*entity.User, error) {
 	query := `
-			SELECT id, email, username, password, role, is_active, 
+			SELECT id, email, username, password, role, is_active 
 			FROM users WHERE email = $1
 	`
 
 	var user entity.User
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
+	err := r.db.QueryRow(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Username,

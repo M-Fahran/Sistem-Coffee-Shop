@@ -41,7 +41,7 @@ func main() {
 			(3, 'Roti Bakar', 15000, 100, true);
 
 			INSERT INTO users (email, username, password, role, is_active) VALUES
-    		('budi@gmail.com', 'budi', '$2a$12$RWh.ocubHv6jnSCRZvId6epsh/xiEPKkmwh4bgajSxXEzn88gV/dS', 'cashier', true);
+    		('budi@gmail.com', 'budi', '$2a$10$LpEcc5n3iXQsJMHAhlRE4O3M2L/uyiFiJ/wsQs78m57SmPCI8HGea', 'cashier', true);
 	`
 
 	_, err := db.Exec(context.Background(), query)

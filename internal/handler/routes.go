@@ -1,12 +1,15 @@
-package main
+package handler
 
 import "github.com/gin-gonic/gin"
 
-func SetupRouter(r *gin.Engine, ProductHandler *ProductHandler) {
+// Tambahkan UserHandler ke dalam parameter agar router mengenalinya
+func SetupRouter(r *gin.Engine, userHandler *UserHandler) {
 	v1 := r.Group("/api/v1")
 	{
-		v1.GET("/menus", GetMenuHandler)
-		
-		// v1.POST("/orders", CreateOrderHandler)
+		// Rute untuk Login (Gunakan POST, panggil fungsi dari userHandler)
+		v1.POST("/login", userHandler.Login)
+
+		// Rute untuk melihat menu (Gunakan GET, panggil fungsi dari productHandler)
+		// v1.GET("/menus", productHandler.GetAllMenus) 
 	}
 }

@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
+	// "fmt"
 	"log"
-	"os"
+	// "os"
 
-	"coffeeshop/internal/handler"
 	"coffeeshop/internal/config"
+	"coffeeshop/internal/handler"
 	"coffeeshop/internal/repository"
 	"coffeeshop/internal/service"
 
@@ -15,27 +15,22 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load("../../.env"); err != nil {
-		log.Println("Tidak menemukan file .env")
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
 	}
 
 	db := config.SetupDatabase()
-	defer db.Close()
 
-	// redisClient := config.SetupRedis()
-
-	productRepo := repository.NewProductRepository(db)
-	productService := service.NewProductService(productRepo)
-	productHandler := handler.NewProductHandler(productService)
+	userRepo := repository.NewUserRepository(db)
+	userService := service.NewUserService(userRepo)
+	userHandler := handler.NewUserHandler(userService)
 
 	r := gin.Default()
 
-	handler.SetupRouter(r, productHandler)
+	handler.SetupRouter(r, userHandler)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	fmt.Printf("Server berjalan di port %s\n", port)
-	r.Run(":" + port)
+	log.Println("🚀 Server Coffee Shop berjalan dengan Gin...")
+	r.Run(":8080")
 }
