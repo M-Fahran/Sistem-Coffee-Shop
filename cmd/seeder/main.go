@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 
@@ -16,7 +15,10 @@ func main() {
 	}
 
 	db := config.SetupDatabase()
-	defer db.Close()
+	sqlDB, err := db.DB()
+	if err == nil {
+    	defer sqlDB.Close()
+}
 
 	fmt.Println("Menjalankan seeder")
 
@@ -44,7 +46,7 @@ func main() {
     		('budi@gmail.com', 'budi', '$2a$10$LpEcc5n3iXQsJMHAhlRE4O3M2L/uyiFiJ/wsQs78m57SmPCI8HGea', 'cashier', true);
 	`
 
-	_, err := db.Exec(context.Background(), query)
+	err = db.Exec(query).Error
 	if err != nil {
 		log.Fatal("gagal menjalankan seeder", err)
 	}

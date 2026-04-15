@@ -23,6 +23,11 @@ func main() {
 
 	db := config.SetupDatabase()
 
+	sqlDB, err := db.DB()
+	if err == nil {
+		defer sqlDB.Close()
+	}
+
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo)
 	userHandler := handler.NewUserHandler(userService)

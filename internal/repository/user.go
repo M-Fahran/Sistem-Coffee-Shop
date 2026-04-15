@@ -1,42 +1,31 @@
 package repository
 
 import (
-	"coffeeshop/internal/entity"
 	"context"
-	"database/sql"
 	"errors"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/gorm"
+	"coffeeshop/internal/entity"
+
+	
 )
 
 type UserRepository struct {
-	db *pgxpool.Pool
+	db *gorm.DB
 }
 
-func NewUserRepository(db *pgxpool.Pool) *UserRepository {
+func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{
 		db: db,
 	}
 }
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*entity.User, error) {
-	query := `
-			SELECT id, email, username, password, role, is_active 
-			FROM users WHERE email = $1
-	`
-
 	var user entity.User
-	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID,
-		&user.Email,
-		&user.Username,
-		&user.Password,
-		&user.Role,
-		&user.IsActive,
-	)
-
+	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
+	
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user tidak ditemukan")
 		}
 		return nil, err

@@ -1,14 +1,15 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
-	"github.com/jackc/pgx/v5/pgxpool"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-func SetupDatabase() *pgxpool.Pool {
+func SetupDatabase() *gorm.DB {
 	// Ambil data dari .env yang sudah dibaca tadi
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
@@ -17,12 +18,13 @@ func SetupDatabase() *pgxpool.Pool {
 	dbname := os.Getenv("DB_NAME")
 
 	// Rangkai URL koneksinya (Wajib ada sslmode=disable untuk Docker lokal)
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, password, host, port, dbname)
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		host, user, password, dbname, port)
 
-	pool, err := pgxpool.New(context.Background(), dsn)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Gagal konek ke database:", err)
+		log.Fatal("Gagal konek ke database via GORM:", err)
 	}
 
-	return pool
+	return db
 }
