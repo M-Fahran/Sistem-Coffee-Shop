@@ -25,7 +25,7 @@ func main() {
 	sqlDB, _ := db.DB()
 	defer sqlDB.Close()
 
-	db.AutoMigrate(&entity.User{})
+	db.AutoMigrate(&entity.User{}, &entity.Category{}, &entity.Product{})
 
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo, cfg.App.Port)

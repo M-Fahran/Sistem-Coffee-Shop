@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"coffeeshop/internal/config"
+	"coffeeshop/internal/entity"
 
 )
 
@@ -21,6 +22,8 @@ func main() {
 }
 
 	fmt.Println("Menjalankan seeder")
+
+	db.AutoMigrate(&entity.User{}, &entity.Category{}, &entity.Product{})
 
 	query := `
 			TRUNCATE TABLE categories, products, users RESTART IDENTITY CASCADE;
