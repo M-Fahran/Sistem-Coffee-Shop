@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
 	"coffeeshop/internal/entity"
@@ -15,6 +14,7 @@ import (
 
 type UserService struct {
 	repo *repository.UserRepository
+	jwtSecret string
 }
 
 type LoginRequest struct {
@@ -22,8 +22,11 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
-	return &UserService{repo: repo}
+func NewUserService(repo *repository.UserRepository, secret string) *UserService {
+	return &UserService{
+		repo: repo,
+		jwtSecret: secret,
+	}
 }
 
 func (s *UserService) Auth(ctx context.Context, req LoginRequest) (*entity.User, string, error) {
@@ -41,7 +44,7 @@ func (s *UserService) Auth(ctx context.Context, req LoginRequest) (*entity.User,
 		return nil, "", errors.New("bcrypt gagal")
 	}
 
-	secretKey := os.Getenv("JWT_SECRET")
+	secretKey := s.jwtSecret
 	if secretKey == "" {
 		return nil, "", errors.New("pengaturan server belum lengkap (JWT_SECRET hilang)")
 	}

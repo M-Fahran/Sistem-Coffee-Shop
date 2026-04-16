@@ -6,34 +6,32 @@ import (
 	// "os"
 
 	"coffeeshop/internal/config"
+	"coffeeshop/internal/entity"
 	"coffeeshop/internal/handler"
 	"coffeeshop/internal/repository"
 	"coffeeshop/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func main() {
 
-	err := godotenv.Load()
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Fatalf("Gagal load config: %v", err)
 	}
 
-	db := config.SetupDatabase()
+	db := config.SetupDatabase(cfg.DatabaseDSN())
+	sqlDB, _ := db.DB()
+	defer sqlDB.Close()
 
-	sqlDB, err := db.DB()
-	if err == nil {
-		defer sqlDB.Close()
-	}
+	db.AutoMigrate(&entity.User{})
 
 	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo)
+	userService := service.NewUserService(userRepo, cfg.App.Port)
 	userHandler := handler.NewUserHandler(userService)
 
 	r := gin.Default()
-
 	handler.SetupRouter(r, userHandler)
 
 	log.Println("🚀 Server Coffee Shop berjalan dengan Gin...")

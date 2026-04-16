@@ -6,15 +6,15 @@ import (
 
 	"coffeeshop/internal/config"
 
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	if err := godotenv.Load("../../.env"); err != nil {
-		log.Println("tidak menemukan file env")
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	db := config.SetupDatabase()
+	db := config.SetupDatabase(cfg.DatabaseDSN())
 	sqlDB, err := db.DB()
 	if err == nil {
     	defer sqlDB.Close()
