@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"context"
 
 	"coffeeshop/internal/config"
-	"coffeeshop/internal/entity"
 
 )
 
@@ -15,15 +15,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db := config.SetupDatabase(cfg.DatabaseDSN())
-	sqlDB, err := db.DB()
-	if err == nil {
-    	defer sqlDB.Close()
-}
+	ctx := context.Background()
+
+	dbPool, err := config.NewPostgresPool(ctx, cfg)
+	if err != nil {
+		log.Fatalf("Gagal konek ke database: %v", err)
+	}
+	defer dbPool.Close()
 
 	fmt.Println("Menjalankan seeder")
-
-	db.AutoMigrate(&entity.User{}, &entity.Category{}, &entity.Product{})
 
 	query := `
 			TRUNCATE TABLE categories, products, users RESTART IDENTITY CASCADE;
@@ -49,7 +49,7 @@ func main() {
     		('budi@gmail.com', 'budi', '$2a$10$LpEcc5n3iXQsJMHAhlRE4O3M2L/uyiFiJ/wsQs78m57SmPCI8HGea', 'cashier', true);
 	`
 
-	err = db.Exec(query).Error
+	_, err = dbPool.Exec(ctx, query)
 	if err != nil {
 		log.Fatal("gagal menjalankan seeder", err)
 	}

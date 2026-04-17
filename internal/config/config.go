@@ -170,20 +170,26 @@ func (c *Config) IsProduction() bool {
 	return strings.EqualFold(c.App.Env, "production")
 }
 
+// AccessExpireDuration returns the JWT access token lifetime as time.Duration.
 func (j JWTConfig) AccessExpireDuration() time.Duration {
 	return time.Duration(j.AccessExpireMinute) * time.Minute
 }
 
+// RefreshExpireDuration returns the JWT refresh token lifetime as time.Duration.
 func (j JWTConfig) RefreshExpireDuration() time.Duration {
 	return time.Duration(j.RefreshExpireHour) * time.Hour
 }
 
+// Constants for validation rules.
 const (
 	minSecretLength = 32
 )
 
 // --------- env loader ---------
 
+// envLoader collects errors while reading environment variables so that
+// all missing or invalid values can be reported in a single error, rather
+// than failing one at a time.
 type envLoader struct {
 	errs []error
 }
