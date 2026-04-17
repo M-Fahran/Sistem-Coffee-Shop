@@ -10,6 +10,7 @@ import (
 	"coffeeshop/internal/handler"
 	"coffeeshop/internal/repository"
 	"coffeeshop/internal/service"
+	"coffeeshop/internal/router"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +33,7 @@ func main() {
 	userHandler := handler.NewUserHandler(userService)
 
 	r := gin.Default()
-	handler.SetupRouter(r, userHandler)
+	router.SetupRouter(r, userHandler)
 
 	log.Println("🚀 Server Coffee Shop berjalan dengan Gin...")
 	r.Run(":8080")

@@ -11,8 +11,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config holds all application configuration loaded from environment variables.
-// All fields are populated at startup and are safe to read concurrently.
 type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
@@ -61,15 +59,7 @@ type CORSConfig struct {
 	AllowedOrigins []string
 }
 
-// Load reads environment variables from .env (if present) and returns a
-// validated Config. It fails fast when required variables are missing or
-// when business rules are violated.
-//
-// Load is the only place in the application that reads raw environment
-// variables. Every other package should receive *Config through dependency
-// injection.
 func Load() (*Config, error) {
-	// .env is optional — in production, env vars come from the OS.
 	_ = godotenv.Load()
 
 	loader := &envLoader{}
@@ -123,7 +113,6 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// validate runs business rules that cannot be expressed by env presence alone.
 func (c *Config) validate() error {
 	var errs []error
 
@@ -168,7 +157,6 @@ func (d DatabaseConfig) validate(isProd bool) error {
 	return nil
 }
 
-// DatabaseDSN returns the PostgreSQL connection string used by pgxpool.
 func (c *Config) DatabaseDSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
@@ -178,31 +166,24 @@ func (c *Config) DatabaseDSN() string {
 	)
 }
 
-// IsProduction reports whether the app is running in production mode.
 func (c *Config) IsProduction() bool {
 	return strings.EqualFold(c.App.Env, "production")
 }
 
-// AccessExpireDuration returns the JWT access token lifetime as time.Duration.
 func (j JWTConfig) AccessExpireDuration() time.Duration {
 	return time.Duration(j.AccessExpireMinute) * time.Minute
 }
 
-// RefreshExpireDuration returns the JWT refresh token lifetime as time.Duration.
 func (j JWTConfig) RefreshExpireDuration() time.Duration {
 	return time.Duration(j.RefreshExpireHour) * time.Hour
 }
 
-// Constants for validation rules.
 const (
 	minSecretLength = 32
 )
 
 // --------- env loader ---------
 
-// envLoader collects errors while reading environment variables so that
-// all missing or invalid values can be reported in a single error, rather
-// than failing one at a time.
 type envLoader struct {
 	errs []error
 }

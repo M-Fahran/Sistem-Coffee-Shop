@@ -1,9 +1,13 @@
-package handler
+package router
 
-import "github.com/gin-gonic/gin"
+import (
+	"coffeeshop/internal/handler"
+
+	"github.com/gin-gonic/gin"
+)
 
 // Tambahkan UserHandler ke dalam parameter agar router mengenalinya
-func SetupRouter(r *gin.Engine, userHandler *UserHandler) {
+func SetupRouter(r *gin.Engine, userHandler *handler.UserHandler) {
 	v1 := r.Group("/api/v1")
 	{
 		// Rute untuk Login (Gunakan POST, panggil fungsi dari userHandler)
