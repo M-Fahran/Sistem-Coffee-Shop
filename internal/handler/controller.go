@@ -2,6 +2,7 @@ package handler
 
 import (
 	"coffeeshop/internal/service"
+	"coffeeshop/internal/support/response"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -63,20 +64,23 @@ func (h *UserHandler) Login(c *gin.Context) {
 	var req service.LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Format JSON tidak valid"})
+		c.JSON(http.StatusBadRequest, response.Error(
+			http.StatusBadRequest, "Bad Request", "Format JSON tidak valid", err.Error(),
+		))
 		return
 	}
 
 	UserHandler, token, err := h.userService.Auth(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, response.Error(
+			http.StatusUnauthorized, "Unauthorized", err.Error(), nil,
+		))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Login berhasil",
-		"token":   token,
-		"data": gin.H{
+	response.OK(c, "Login Berhasil", gin.H{
+		"token": token,
+		"user": gin.H{
 			"id":       UserHandler.ID,
 			"email":    UserHandler.Email,
 			"username": UserHandler.Username,

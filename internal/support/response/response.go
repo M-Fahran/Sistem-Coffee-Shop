@@ -6,20 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Envelope is the standard JSON structure for all API responses.
-//
-// Success:
-//
-//	{"success": true, "code": 201, "message": "product created", "data": {...}}
-//
-// Error:
-//
-//	{"success": false, "code": 409, "message": "order sudah dibayar"}
-//
-// Validation:
-//
-//	{"success": false, "code": 422, "message": "validation failed",
-//	 "errors": [{"field": "name", "message": "is required"}]}
 type Envelope struct {
 	Success   bool   `json:"success"`
 	Code      int    `json:"code"`
@@ -36,9 +22,6 @@ type PageMeta struct {
 	Total   int
 }
 
-// --------- core builders ---------
-
-// Success returns a success envelope.
 func Success(code int, message string, data any) Envelope {
 	return Envelope{
 		Success: true,
@@ -59,8 +42,6 @@ func Error(code int, errCode, message string, details any) Envelope {
 	}
 }
 
-// --------- shorthand helpers ---------
-
 // OK sends a 200 JSON response.
 func OK(c *gin.Context, message string, data any) {
 	c.JSON(http.StatusOK, Success(http.StatusOK, message, data))
@@ -77,8 +58,6 @@ func NoContent(c *gin.Context) {
 }
 
 // Paginated sends a 200 JSON response with pagination metadata.
-//
-//	response.Paginated(c, "ok", items, response.PageMeta{Page: 1, PerPage: 10, Total: 57})
 func Paginated(c *gin.Context, message string, items any, meta PageMeta) {
 	c.JSON(http.StatusOK, Success(http.StatusOK, message, gin.H{
 		"items": items,
