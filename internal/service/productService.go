@@ -1,30 +1,38 @@
 package service
 
 import (
-	"context"
 	"coffeeshop/internal/entity"
 	"coffeeshop/internal/repository"
+	"context"
+	"errors"
 )
 
-type ProductService interface {
-	GetAvailableMenu(ctx context.Context) ([]entity.Product, error)
+type CreateProductRequest struct {
+	CategoryID int `json:"category_id" binding:"required"`
+	Name string `json:"name" binding:"required"`
+	BasePrice int `json:"base_price" binding:"required,gte=0"`
+	Stock int `json:"stock" binding:"required,gte=0"`
 }
 
-type productService struct {
-	productRepo repository.ProductRepository
+type ProductService struct {
+	repo *repository.ProductRepository
 }
 
-func NewProductService(repo repository.ProductRepository) ProductService {
-	return &productService{
-		productRepo: repo,
+func NewProductService(repo *repository.ProductRepository) *ProductService {
+	return &ProductService{repo: repo}
+}
+
+func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductRequest) (*entity.Product, error) {
+	product := &entity.Product{
+		CategoryID: req.CategoryID,
+		Name: req.Name,
+		BasePrice: req.BasePrice,
+		Stock: req.Stock,
+		IsActive: true,
 	}
-}
-
-func (s *productService) GetAvailableMenu(ctx context.Context) ([]entity.Product, error) {
-	products, err := s.productRepo.GetAllActiveProducts(ctx)
+	err := s.repo.Create(ctx, product)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("gagal menyimpan produk ke database")
 	}
-
-	return products, nil
+	return product, nil
 }
