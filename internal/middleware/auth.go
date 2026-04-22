@@ -18,16 +18,16 @@ func RequireAuth(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer")
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error){
-			return []byte(cfg.JWT.Secret), nil
-		})
-		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, response.Error(http.StatusUnauthorized, "Unauthorized", "Token tidak valid", nil))
-			return 
-		}
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			c.Set("user_id", claims["sub"])
+tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error){
+		return []byte(cfg.JWT.Secret), nil
+	})
+	if err != nil || !token.Valid {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, response.Error(http.StatusUnauthorized, "Unauthorized", "Token tidak valid", nil))
+		return 
+	}
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		c.Set("user_id", claims["user_id"])
 			c.Set("role", claims["role"])
 		}
 

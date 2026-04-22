@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,4 +33,21 @@ func (h *ProductController) CreateProduct(c *gin.Context) {
 	}
 
 	response.Created(c, "Berhasil menambahkan produk", product)
+}
+
+func (h *ProductController) GetAll(c *gin.Context) {
+	products, err := h.productService.GetAllActiveProducts(c.Request.Context())
+
+	if err != nil {
+		log.Printf("[ProductController.GetAll] IP: %s | URL: %s | Error: %v\n", c.ClientIP(), c.Request.URL.Path, err)
+		c.JSON(http.StatusInternalServerError, response.Error(
+			http.StatusInternalServerError,
+			"INTERNAL ERROR",
+			"Gagal mengambil data produk",
+			nil,
+		))
+		return
+	}
+
+	response.OK(c, "Berhasil mengambil produk", products)
 }

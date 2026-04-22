@@ -17,11 +17,11 @@ func main() {
 
 	ctx := context.Background()
 
-	dbPool, err := config.NewPostgresPool(ctx, cfg)
+	pool, err := config.NewPostgresPool(ctx, cfg)
 	if err != nil {
 		log.Fatalf("Gagal konek ke database: %v", err)
 	}
-	defer dbPool.Close()
+	defer pool.Close()
 
 	fmt.Println("Menjalankan seeder")
 
@@ -46,10 +46,11 @@ func main() {
 			(3, 'Roti Bakar', 15000, 100, true);
 
 			INSERT INTO users (email, username, password, role, is_active) VALUES
-    		('budi@gmail.com', 'budi', '$2a$10$LpEcc5n3iXQsJMHAhlRE4O3M2L/uyiFiJ/wsQs78m57SmPCI8HGea', 'cashier', true);
+    		('budi@gmail.com', 'budi', '$2a$10$LpEcc5n3iXQsJMHAhlRE4O3M2L/uyiFiJ/wsQs78m57SmPCI8HGea', 'cashier', true),
+    		('bimbim@gmail.com', 'bimbim', '$2a$12$9tTUtc56sA0m9L/cYbITdetHFeDOKBHMvRDKsiz0hzVnvbAwIKEnu', 'admin', true);
 	`
 
-	_, err = dbPool.Exec(ctx, query)
+	_, err = pool.Exec(ctx, query)
 	if err != nil {
 		log.Fatal("gagal menjalankan seeder", err)
 	}

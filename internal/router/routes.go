@@ -27,15 +27,21 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 	productService := service.NewProductService(productRepo)
 	productController := controller.NewProductController(productService)
 
-	api := r.Group("/api/v1")
+
+	admin := r.Group("/admin")
 	{
-		api.POST("/login", userController.Login)
-		adminRoutes := api.Group("/")
+		admin.POST("/login", userController.Login)
+		adminRoutes := admin.Group("/")
 		adminRoutes.Use(middleware.RequireAuth(cfg), middleware.RequireAdmin())
 		{
-			// POST /api/v1/products
 			adminRoutes.POST("/products", productController.CreateProduct)
+			adminRoutes.GET("/products", productController.GetAll)
 		}
+	}
+
+	user := r.Group("/user")
+	{
+		user.GET("/products", productController.GetAll)
 	}
 }
 

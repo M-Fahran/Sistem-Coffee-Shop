@@ -4,14 +4,14 @@ import (
 	"coffeeshop/internal/entity"
 	"coffeeshop/internal/repository"
 	"context"
-	"errors"
+	"fmt"
 )
 
 type CreateProductRequest struct {
-	CategoryID int `json:"category_id" binding:"required"`
-	Name string `json:"name" binding:"required"`
-	BasePrice int `json:"base_price" binding:"required,gte=0"`
-	Stock int `json:"stock" binding:"required,gte=0"`
+	CategoryID int64  `json:"category_id" binding:"required"`
+	Name       string `json:"name" binding:"required"`
+	BasePrice  int    `json:"base_price" binding:"required,gte=0"`
+	Stock      int    `json:"stock" binding:"required,gte=0"`
 }
 
 type ProductService struct {
@@ -25,14 +25,22 @@ func NewProductService(repo *repository.ProductRepository) *ProductService {
 func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductRequest) (*entity.Product, error) {
 	product := &entity.Product{
 		CategoryID: req.CategoryID,
-		Name: req.Name,
-		BasePrice: req.BasePrice,
-		Stock: req.Stock,
-		IsActive: true,
+		Name:       req.Name,
+		BasePrice:  req.BasePrice,
+		Stock:      req.Stock,
+		IsActive:   true,
 	}
 	err := s.repo.Create(ctx, product)
 	if err != nil {
-		return nil, errors.New("gagal menyimpan produk ke database")
+		return nil, fmt.Errorf("gagal menyimpan produk ke database: %w", err)
 	}
 	return product, nil
+}
+
+func (s *ProductService) GetAllActiveProducts(ctx context.Context) ([]entity.Product, error) {
+	products, err := s.repo.GetAllActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("gagal mengambil daftar produk aktif: %w", err)
+	}
+	return products, nil
 }
