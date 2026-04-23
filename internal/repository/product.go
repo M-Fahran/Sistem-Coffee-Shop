@@ -47,3 +47,20 @@ func (r *ProductRepository) GetAllActive(ctx context.Context) ([]entity.Product,
 	}
 	return products, nil
 }
+
+func (r *ProductRepository) Update(ctx context.Context, p *entity.Product) error {
+	query := `UPDATE products 
+			SET category_id = $1, name = $2, base_price = $3, stock = $4, is_active = $5
+			WHERE id = $6`
+	
+	commandTag, err := r.db.Exec(ctx, query, p.CategoryID, p.Name, p.BasePrice, p.Stock, p.IsActive, p.ID)
+	if err != nil {
+		return err
+	}
+
+	if commandTag.RowsAffected() == 0 {
+		return context.DeadlineExceeded
+	}
+
+	return nil
+}

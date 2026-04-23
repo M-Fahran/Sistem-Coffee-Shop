@@ -35,13 +35,14 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 		adminRoutes.Use(middleware.RequireAuth(cfg), middleware.RequireAdmin())
 		{
 			adminRoutes.POST("/products", productController.CreateProduct)
-			adminRoutes.GET("/products", productController.GetAll)
+			adminRoutes.GET("/products", productController.GetAllActive)
+			adminRoutes.PUT("/products/:id", productController.UpdateProduct)
 		}
 	}
 
 	user := r.Group("/user")
 	{
-		user.GET("/products", productController.GetAll)
+		user.GET("/products", productController.GetAllActive)
 	}
 }
 

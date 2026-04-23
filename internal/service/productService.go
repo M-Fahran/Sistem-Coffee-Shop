@@ -13,6 +13,13 @@ type CreateProductRequest struct {
 	BasePrice  int    `json:"base_price" binding:"required,gte=0"`
 	Stock      int    `json:"stock" binding:"required,gte=0"`
 }
+type UpdateProductRequest struct {
+	CategoryID int64  `json:"category_id" binding:"required"`
+	Name       string `json:"name" binding:"required"`
+	BasePrice  int    `json:"base_price" binding:"required,gte=0"`
+	Stock      int    `json:"stock" binding:"required,gte=0"`
+	Is_Active  *bool `json:"is_active" binding:"required"`
+}
 
 type ProductService struct {
 	repo *repository.ProductRepository
@@ -43,4 +50,22 @@ func (s *ProductService) GetAllActiveProducts(ctx context.Context) ([]entity.Pro
 		return nil, fmt.Errorf("gagal mengambil daftar produk aktif: %w", err)
 	}
 	return products, nil
+}
+
+func (s *ProductService) UpdateProduct(ctx context.Context, id int64, req UpdateProductRequest) error {
+	product := &entity.Product{
+		ID: id,
+		CategoryID: req.CategoryID,
+		Name: req.Name,
+		BasePrice: req.BasePrice,
+		Stock: req.Stock,
+		IsActive: *req.Is_Active,
+	}
+
+	err := s.repo.Update(ctx, product)
+	if err != nil {
+		return fmt.Errorf("gagal mengupdate produk (ID: %d) : %w", id, err)
+	}
+
+	return nil
 }
