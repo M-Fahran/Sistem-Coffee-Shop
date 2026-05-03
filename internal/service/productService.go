@@ -8,18 +8,20 @@ import (
 )
 
 type CreateProductRequest struct {
-	CategoryID int64  `json:"category_id" binding:"required"`
-	Name       string `json:"name" binding:"required"`
-	Price      int    `json:"price" binding:"required,gte=0"`
-	Stock      int    `json:"stock" binding:"required,gte=0"`
+	CategoryID int64   `json:"category_id" binding:"required"`
+	Name       string  `json:"name" binding:"required"`
+	Price      int     `json:"price" binding:"required,gte=0"`
+	Stock      int     `json:"stock" binding:"required,gte=0"`
+	AddonID    []int64 `json:"addon_id"`
 }
 
 type UpdateProductRequest struct {
-	CategoryID int64  `json:"category_id" binding:"required"`
-	Name       string `json:"name" binding:"required"`
-	Price      int    `json:"price" binding:"required,gte=0"`
-	Stock      int    `json:"stock" binding:"required,gte=0"`
-	Is_Active  *bool  `json:"is_active" binding:"required"`
+	CategoryID *int64  `json:"category_id"`
+	Name       *string `json:"name"`
+	Price      *int    `json:"price"`
+	Stock      *int    `json:"stock"`
+	Is_Active  *bool   `json:"is_active"`
+	AddonID    []int64 `json:"addon_id"`
 }
 
 type CreateProductAddOnRequest struct {
@@ -30,10 +32,10 @@ type CreateProductAddOnRequest struct {
 }
 
 type UpdateProductAddOnRequest struct {
-	Name      string `json:"name" binding:"required"`
-	Price     int    `json:"price" binding:"required,gte=0"`
-	Stock     int    `json:"stock" binding:"required,gte=0"`
-	Is_Active *bool  `json:"is_active" binding:"required"`
+	Name      *string `json:"name"`
+	Price     *int    `json:"price"`
+	Stock     *int    `json:"stock"`
+	Is_Active *bool   `json:"is_active"`
 }
 
 type ProductService struct {
@@ -57,37 +59,77 @@ func (s *ProductService) GetAllProducts(ctx context.Context, filterStatus, categ
 	if err != nil {
 		return nil, fmt.Errorf("gagal mengambil daftar produk: %w", err)
 	}
+
+	for i := range products {
+		addon, err := s.repo.GetAddOnByProductID(ctx, products[i].ID)
+		if err != nil {
+			products[i].AddOn = addon
+		}
+	}
 	return products, nil
 }
 
-func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductRequest) (*entity.Product, error) {
-	product := &entity.Product{
+func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductRequest) (int64, error) {
+	product := entity.Product{
 		CategoryID: req.CategoryID,
 		Name:       req.Name,
 		BasePrice:  req.Price,
 		Stock:      req.Stock,
 		IsActive:   true,
 	}
-	err := s.repo.CreateProduct(ctx, product)
+	
+	newID, err := s.repo.CreateProduct(ctx, &product)
 	if err != nil {
-		return nil, fmt.Errorf("gagal menyimpan produk ke database: %w", err)
+		return 0, fmt.Errorf("gagal menyimpan produk ke database: %w", err)
 	}
-	return product, nil
+
+	if len(req.AddonID) > 0 {
+		err = s.repo.SyncProductAddOn(ctx, newID, req.AddonID)
+		if err != nil {
+			return newID, fmt.Errorf("produk berhasil dibuat namun gagal menambahkan addOn: %w", err)
+		}
+	}
+
+	return newID, nil
 }
 
 func (s *ProductService) UpdateProduct(ctx context.Context, id int64, req UpdateProductRequest) error {
-	product := &entity.Product{
-		ID:         id,
-		CategoryID: req.CategoryID,
-		Name:       req.Name,
-		BasePrice:  req.Price,
-		Stock:      req.Stock,
-		IsActive:   *req.Is_Active,
+	existingProduct, err := s.repo.GetProductByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("produk dengan ID %d tidak ditemukan: %w", id, err)
 	}
 
-	err := s.repo.UpdateProduct(ctx, product)
+	if req.CategoryID != nil {
+		existingProduct.CategoryID = *req.CategoryID
+	}
+
+	if req.Name != nil {
+		existingProduct.Name = *req.Name
+	}
+
+	if req.Price != nil {
+		existingProduct.BasePrice = *req.Price
+	}
+
+	if req.Stock != nil {
+		existingProduct.Stock = *req.Stock
+	}
+
+	if req.Is_Active != nil {
+		existingProduct.IsActive = *req.Is_Active
+	}
+
+	err = s.repo.UpdateProduct(ctx, &existingProduct)
+
 	if err != nil {
 		return fmt.Errorf("gagal mengupdate produk (ID: %d) : %w", id, err)
+	}
+
+	if req.AddonID != nil {
+		err = s.repo.SyncProductAddOn(ctx, id, req.AddonID)
+		if err != nil {
+			return fmt.Errorf("gagal sinkron addOn: %w", err)
+		}
 	}
 
 	return nil
@@ -124,15 +166,29 @@ func (s *ProductAddOnService) CreateProductAddOn(ctx context.Context, req Create
 }
 
 func (s *ProductAddOnService) UpdateProductAddOn(ctx context.Context, id int64, req UpdateProductAddOnRequest) error {
-	product := &entity.ProductAddon{
-		ID:       id,
-		Name:     req.Name,
-		Price:    req.Price,
-		Stock:    req.Stock,
-		IsActive: *req.Is_Active,
+	existingProduct, err := s.repo.GetProductAddOnByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("produk dengan ID %d tidak ditemukan: %w", id, err)
 	}
 
-	err := s.repo.UpdateProductAddOn(ctx, product)
+	if req.Name != nil {
+		existingProduct.Name = *req.Name
+	}
+
+	if req.Price != nil {
+		existingProduct.Price = *req.Price
+	}
+
+	if req.Stock != nil {
+		existingProduct.Stock = *req.Stock
+	}
+
+	if req.Is_Active != nil {
+		existingProduct.IsActive = *req.Is_Active
+	}
+
+	err = s.repo.UpdateProductAddOn(ctx, &existingProduct)
+
 	if err != nil {
 		return fmt.Errorf("gagal mengupdate produk (ID: %d) : %w", id, err)
 	}
