@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"coffeeshop/internal/request"
 	"coffeeshop/internal/service"
 	"coffeeshop/internal/support/response"
 )
@@ -46,54 +47,47 @@ func (h *ProductController) GetAllProducts(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("[ProductController.GetAll] IP: %s | URL: %s | Error: %v\n", c.ClientIP(), c.Request.URL.Path, err)
-		c.JSON(http.StatusInternalServerError, response.Error(
-			http.StatusInternalServerError,
-			"INTERNAL ERROR",
-			"Gagal mengambil data produk",
-			nil,
-		))
-		return
+		response.SendError(c, http.StatusInternalServerError, "INTERNAL ERROR", "Gagal mengambil data produk", nil)
+    	return
 	}
 
 	response.OK(c, "Berhasil mengambil produk", products)
 }
 
 func (h *ProductController) CreateProduct(c *gin.Context) {
-	var req service.CreateProductRequest
-
+	var req request.CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD REQUEST", "Input tidak valid", err.Error()))
+		response.SendError(c, http.StatusInternalServerError, "BAD REQUEST", "Input tidak valid", err.Error())
 		return
 	}
 
-	product, err := h.productService.CreateProduct(c.Request.Context(), req)
+	newID, err := h.productService.CreateProduct(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error(http.StatusInternalServerError, "ERROR INTERNAL", err.Error(), nil))
+		response.SendError(c, http.StatusInternalServerError, "ERROR INTERNAL", err.Error(), nil)
 		return
 	}
 
-	response.Created(c, "Berhasil menambahkan produk", product)
+	response.Created(c, "Berhasil menambahkan produk", newID)
 }
 
 func (h *ProductController) UpdateProduct(c *gin.Context) {
 	idStr := c.Param("id")
-
 	productID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil))
+		response.SendError(c, http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil)
 		return
 	}
 
-	var req service.UpdateProductRequest
+	var req request.UpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD_REQUEST", "Format JSON tidak valid", err.Error()))
+		response.SendError(c, http.StatusBadRequest, "BAD_REQUEST", "Format JSON tidak valid", err.Error())
 		return
 	}
 
 	err = h.productService.UpdateProduct(c.Request.Context(), productID, req)
 	if err != nil {
 		log.Printf("[ProductHandler.Update] IP: %s | ID: %d | Error: %v\n", c.ClientIP(), productID, err)
-		c.JSON(http.StatusInternalServerError, response.Error(http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal memperbarui data produk", nil))
+		response.SendError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal memperbarui data produk", nil)
 		return
 	}
 
@@ -104,29 +98,28 @@ func (h *ProductController) DeleteProduct(c *gin.Context) {
 	idStr := c.Param("id")
 	productID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil))
+		response.SendError(c, http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil)
 		return
 	}
-	err = h.productService.DeleteProduct(c.Request.Context(), productID)
 
+	err = h.productService.DeleteProduct(c.Request.Context(), productID)
 	if err != nil {
 		log.Printf("[ProductHandler.Delete] IP: %s | ID: %d | Error: %v\n", c.ClientIP(), productID, err)
 
 		if err.Error() == "gagal menghapus produk (ID: "+idStr+"): produk tidak ditemukan" {
-			c.JSON(http.StatusNotFound, response.Error(http.StatusNotFound, "NOT_FOUND", "Produk tidak ditemukan", nil))
+			response.SendError(c, http.StatusNotFound, "NOT_FOUND", "Produk tidak ditemukan", nil)
 			return
 		}
 
 		if strings.Contains(err.Error(), "23503") || strings.Contains(err.Error(), "violates foreign key constraint") {
-			c.JSON(http.StatusConflict, response.Error(
-                http.StatusConflict, 
-                "CONFLICT", 
-                "Menu ini tidak bisa dihapus karena sudah memiliki riwayat pesanan. Silakan gunakan fitur Update untuk menonaktifkan (is_active = false) menu ini.", 
-                nil,
-            ))
+			response.SendError(c, http.StatusConflict,
+				"CONFLICT",
+				"Menu ini tidak bisa dihapus karena sudah memiliki riwayat pesanan. Silakan gunakan fitur Update untuk menonaktifkan (is_active = false) menu ini.",
+				nil,
+			)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, response.Error(http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal menghapus data produk", nil))
+		response.SendError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal menghapus data produk", nil)
 		return
 	}
 	response.OK(c, "Berhasil menghapus produk secara permanen", nil)
@@ -134,15 +127,9 @@ func (h *ProductController) DeleteProduct(c *gin.Context) {
 
 func (h *ProductAddOnController) GetAllProductsAddOn(c *gin.Context) {
 	productsAddOn, err := h.productAddOnService.GetAllProductsAddOn(c.Request.Context())
-
 	if err != nil {
 		log.Printf("[ProductController.GetAll] IP: %s | URL: %s | Error: %v\n", c.ClientIP(), c.Request.URL.Path, err)
-		c.JSON(http.StatusInternalServerError, response.Error(
-			http.StatusInternalServerError,
-			"INTERNAL ERROR",
-			"Gagal mengambil data AddOn produk",
-			nil,
-		))
+		response.SendError(c, http.StatusInternalServerError, "INTERNAL ERROR", "Gagal mengambil data AddOn produk", nil,)
 		return
 	}
 
@@ -150,16 +137,16 @@ func (h *ProductAddOnController) GetAllProductsAddOn(c *gin.Context) {
 }
 
 func (h *ProductAddOnController) CreateProductAddOn(c *gin.Context) {
-	var req service.CreateProductAddOnRequest
+	var req request.CreateProductAddOnRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD REQUEST", "Input tidak valid", err.Error()))
+		response.SendError(c, http.StatusBadRequest, "BAD REQUEST", "Input tidak valid", err.Error())
 		return
 	}
 
 	productAddOn, err := h.productAddOnService.CreateProductAddOn(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.Error(http.StatusInternalServerError, "ERROR INTERNAL", err.Error(), nil))
+		response.SendError(c, http.StatusInternalServerError, "ERROR INTERNAL", err.Error(), nil)
 		return
 	}
 
@@ -171,20 +158,20 @@ func (h *ProductAddOnController) UpdateProductAddOn(c *gin.Context) {
 
 	productAddOnID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil))
+		response.SendError(c, http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil)
 		return
 	}
 
-	var req service.UpdateProductAddOnRequest
+	var req request.UpdateProductAddOnRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD_REQUEST", "Format JSON tidak valid", err.Error()))
+		response.SendError(c, http.StatusBadRequest, "BAD_REQUEST", "Format JSON tidak valid", err.Error())
 		return
 	}
 
 	err = h.productAddOnService.UpdateProductAddOn(c.Request.Context(), productAddOnID, req)
 	if err != nil {
 		log.Printf("[ProductHandler.Update] IP: %s | ID: %d | Error: %v\n", c.ClientIP(), productAddOnID, err)
-		c.JSON(http.StatusInternalServerError, response.Error(http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal memperbarui data AddOn produk", nil))
+		response.SendError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal memperbarui data AddOn produk", nil)
 		return
 	}
 
@@ -195,7 +182,7 @@ func (h *ProductAddOnController) DeleteProductAddOn(c *gin.Context) {
 	idStr := c.Param("id")
 	productAddOnID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil))
+		response.SendError(c, http.StatusBadRequest, "BAD_REQUEST", "Format ID produk tidak valid", nil)
 		return
 	}
 	err = h.productAddOnService.DeleteProductAddOn(c.Request.Context(), productAddOnID)
@@ -204,11 +191,11 @@ func (h *ProductAddOnController) DeleteProductAddOn(c *gin.Context) {
 		log.Printf("[ProductHandler.Delete] IP: %s | ID: %d | Error: %v\n", c.ClientIP(), productAddOnID, err)
 
 		if err.Error() == "gagal menghapus AddOn produk (ID: "+idStr+"): AddOn produk tidak ditemukan" {
-			c.JSON(http.StatusNotFound, response.Error(http.StatusNotFound, "NOT_FOUND", "AddOn Produk tidak ditemukan", nil))
+			response.SendError(c, http.StatusNotFound, "NOT_FOUND", "AddOn Produk tidak ditemukan", nil)
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, response.Error(http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal menghapus data AddOn produk", nil))
+		response.SendError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal menghapus data AddOn produk", nil)
 		return
 	}
 	response.OK(c, "Berhasil menghapus AddOn produk secara permanen", nil)

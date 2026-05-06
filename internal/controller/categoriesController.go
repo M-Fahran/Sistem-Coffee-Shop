@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"coffeeshop/internal/request"
 	"coffeeshop/internal/service"
 	"coffeeshop/internal/support/response"
 
@@ -38,7 +39,7 @@ func (h *CategoriesController) GetAllCategories(c *gin.Context) {
 }
 
 func (h *CategoriesController) CreateCategories(c *gin.Context) {
-	var req service.CategoriesRequest
+	var req request.CategoriesRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD REQUEST", "Input tidak valid", err.Error()))
@@ -63,7 +64,7 @@ func (h *CategoriesController) UpdateCategories(c *gin.Context) {
 		return
 	}
 
-	var req service.CategoriesRequest
+	var req request.CategoriesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, response.Error(http.StatusBadRequest, "BAD_REQUEST", "Format JSON tidak valid", err.Error()))
 		return

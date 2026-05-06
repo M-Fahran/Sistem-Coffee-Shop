@@ -18,9 +18,14 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 	userController := controller.NewUserHandler(userService)
 
 	productRepo := repository.NewProductRepository(pool)
-	productService := service.NewProductService(productRepo)
+	categoriesRepo := repository.NewCategoriesRepository(pool)
+	
+	productService := service.NewProductService(productRepo, categoriesRepo)
 	productController := controller.NewProductController(productService)
 
+	categoriesService := service.NewCategoriesService(categoriesRepo)
+	categoriesController := controller.NewCategoriesController(categoriesService)
+	
 	productAddOnRepo := repository.NewProductAddOnRepository(pool)
 	productAddOnService := service.NewProductAddOnService(productAddOnRepo)
 	productAddOnController := controller.NewProductAddOnController(productAddOnService)
@@ -28,10 +33,6 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 	ordersRepo := repository.NewOrdersRepository(pool)
 	ordersService := service.NewOrdersService(ordersRepo)
 	ordersController := controller.NewOrdersController(ordersService)
-	
-	categoriesRepo := repository.NewCategoriesRepository(pool)
-	categoriesService := service.NewCategoriesService(categoriesRepo)
-	categoriesController := controller.NewCategoriesController(categoriesService)
 
 	admin := r.Group("/admin")
 	{

@@ -3,13 +3,10 @@ package service
 import (
 	"coffeeshop/internal/entity"
 	"coffeeshop/internal/repository"
+	"coffeeshop/internal/request"
 	"context"
 	"fmt"
 )
-
-type CategoriesRequest struct {
-	Name string `json:"name" binding:"required"`
-}
 
 // type UpdateCategoriesRequest struct {
 // 	Name string `json:"name" binding:"required"`
@@ -31,7 +28,7 @@ func (s *CategoriesService) GetAllCategories(ctx context.Context) ([]entity.Cate
 	return categories, nil
 }
 
-func (s *CategoriesService) CreateCategories(ctx context.Context, req CategoriesRequest) (*entity.Categories, error) {
+func (s *CategoriesService) CreateCategories(ctx context.Context, req request.CategoriesRequest) (*entity.Categories, error) {
 	categories := &entity.Categories{
 		Name: req.Name,
 	}
@@ -42,7 +39,7 @@ func (s *CategoriesService) CreateCategories(ctx context.Context, req Categories
 	return categories, nil
 }
 
-func (s *CategoriesService) UpdateCategories(ctx context.Context, id int64, req CategoriesRequest) error {
+func (s *CategoriesService) UpdateCategories(ctx context.Context, id int64, req request.CategoriesRequest) error {
 	categories := &entity.Categories{
 		ID: id,
 		Name: req.Name,
