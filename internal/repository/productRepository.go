@@ -102,7 +102,7 @@ func (r *ProductRepository) GetProductByID(ctx context.Context, id int64) (entit
 }
 
 func (r *ProductRepository) GetAddOnByProductID(ctx context.Context, productID int64) ([]entity.ProductAddon, error){
-	query := `SELECT pa.id, pa.name, pa.price, pa.stock, pa.is_active FROM product_addon pa JOIN product_addon_map pam ON pa.id = pam.product_addon_id WHERE pam.product_id = $1`
+	query := `SELECT pa.id, pa.name, pa.price, pa.stock, pa.is_active FROM product_addons pa JOIN product_addon_map pam ON pa.id = pam.product_addon_id WHERE pam.product_id = $1`
 
 	rows, err := r.db.Query(ctx, query, productID)
 	if err != nil {

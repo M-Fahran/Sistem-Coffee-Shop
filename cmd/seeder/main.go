@@ -48,6 +48,11 @@ func main() {
 			INSERT INTO users (email, username, password, role, is_active) VALUES
     		('budi@gmail.com', 'budi', '$2a$10$LpEcc5n3iXQsJMHAhlRE4O3M2L/uyiFiJ/wsQs78m57SmPCI8HGea', 'cashier', true),
     		('bimbim@gmail.com', 'bimbim', '$2a$12$9tTUtc56sA0m9L/cYbITdetHFeDOKBHMvRDKsiz0hzVnvbAwIKEnu', 'admin', true);
+
+			INSERT INTO product_addons (name, price, stock, is_active) VALUES
+			('Extra Shot', 5000, 10, true),
+			('Syrup Coklat', 3000, 10, true),
+			('Syrup Vanila', 3000, 10, true);
 	`
 
 	_, err = pool.Exec(ctx, query)

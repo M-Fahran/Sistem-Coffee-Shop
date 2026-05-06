@@ -37,8 +37,9 @@ func (s *ProductService) GetAllProducts(ctx context.Context, filterStatus, categ
 	for i := range products {
 		addon, err := s.productRepo.GetAddOnByProductID(ctx, products[i].ID)
 		if err != nil {
-			products[i].AddOn = addon
+			fmt.Printf("Error ambil addon untuk Product ID %d: %v\n", products[i].ID, err)
 		}
+		products[i].AddOn = addon
 	}
 	return products, nil
 }
