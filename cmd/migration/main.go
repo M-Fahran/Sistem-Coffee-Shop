@@ -30,7 +30,7 @@ func main() {
 	fmt.Println("✅ Database terhubung!")
 
 	// Deteksi folder
-	migrationsDir := "migration"
+	migrationsDir := "cmd/migration"
 	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
 		migrationsDir = "."
 	}
