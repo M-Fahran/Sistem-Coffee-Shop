@@ -1,10 +1,5 @@
 package entity
 
-type Category struct {
-	ID   uint   `gorm:"primaryKey"`
-	Name string `gorm:"not null"`
-}
-
 type Product struct {
 	ID         int64  `json:"id"`
 	CategoryID int64  `json:"category_id"`
@@ -15,9 +10,9 @@ type Product struct {
 }
 
 type ProductAddon struct {
-	ID       uint   `gorm:"primaryKey"`
-	Name     string `gorm:"not null"`
-	Price    int    `gorm:"not null"`
-	Stock    int    `gorm:"not null"`
-	IsActive bool   `gorm:"default:true"`
+	ID       int64   `json:"id"`
+	Name     string `json:"name"`
+	Price    int    `json:"price"`
+	Stock    int    `json:"stock"`
+	IsActive bool   `json:"is_active"`
 }

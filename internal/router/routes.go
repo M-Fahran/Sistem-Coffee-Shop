@@ -7,27 +7,32 @@ import (
 	"coffeeshop/internal/middleware"
 	"coffeeshop/internal/repository"
 	"coffeeshop/internal/service"
-	// "context"
-	// "net/http"
-	// "time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
 
-// const healthCheckTimeout = 2 * time.Second
-
-// SetupRouter registers all routes on the given Gin engine.
 func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *config.Config) {
 	userRepo := repository.NewUserRepository(pool)
-    userService := service.NewUserService(userRepo, cfg.JWT.Secret)
+	userService := service.NewUserService(userRepo, cfg.JWT.Secret)
 	userController := controller.NewUserHandler(userService)
 
 	productRepo := repository.NewProductRepository(pool)
 	productService := service.NewProductService(productRepo)
 	productController := controller.NewProductController(productService)
 
+	productAddOnRepo := repository.NewProductAddOnRepository(pool)
+	productAddOnService := service.NewProductAddOnService(productAddOnRepo)
+	productAddOnController := controller.NewProductAddOnController(productAddOnService)
+
+	ordersRepo := repository.NewOrdersRepository(pool)
+	ordersService := service.NewOrdersService(ordersRepo)
+	ordersController := controller.NewOrdersController(ordersService)
+	
+	categoriesRepo := repository.NewCategoriesRepository(pool)
+	categoriesService := service.NewCategoriesService(categoriesRepo)
+	categoriesController := controller.NewCategoriesController(categoriesService)
 
 	tableRepo := repository.NewTableRepository(pool)
 	tableService := service.NewTableService(tableRepo, slog.Default())
@@ -39,15 +44,28 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 		adminRoutes := admin.Group("/")
 		adminRoutes.Use(middleware.RequireAuth(cfg), middleware.RequireAdmin())
 		{
+			adminRoutes.GET("/products", productController.GetAllProducts)
 			adminRoutes.POST("/products", productController.CreateProduct)
-			adminRoutes.GET("/products", productController.GetAllActive)
 			adminRoutes.PUT("/products/:id", productController.UpdateProduct)
+			adminRoutes.DELETE("/products/:id", productController.DeleteProduct)
+
+			adminRoutes.GET("/productsAddOn", productAddOnController.GetAllProductsAddOn)
+			adminRoutes.POST("/productsAddOn", productAddOnController.CreateProductAddOn)
+			adminRoutes.PUT("/productsAddOn/:id", productAddOnController.UpdateProductAddOn)
+			adminRoutes.DELETE("/productsAddOn/:id", productAddOnController.DeleteProductAddOn)
+			
+			adminRoutes.GET("/orders", ordersController.GetAllOrders)
+			
+			adminRoutes.GET("/categories", categoriesController.GetAllCategories)
+			adminRoutes.POST("/categories", categoriesController.CreateCategories)
+			adminRoutes.PUT("/categories/:id", categoriesController.UpdateCategories)
+			adminRoutes.DELETE("/categories/:id", categoriesController.DeleteCategories)
 		}
 	}
 
 	user := r.Group("/user")
 	{
-		user.GET("/products", productController.GetAllActive)
+		user.GET("/products", productController.GetAllProducts)
 	}
 	table := r.Group("/tables")
 	{
