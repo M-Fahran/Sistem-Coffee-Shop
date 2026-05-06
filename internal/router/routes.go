@@ -1,6 +1,7 @@
 package router
 
 import (
+	"log/slog"   // ⬅ TAMBAH IMPORT INI
 	"coffeeshop/internal/config"
 	"coffeeshop/internal/controller"
 	"coffeeshop/internal/middleware"
@@ -28,6 +29,10 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 	productController := controller.NewProductController(productService)
 
 
+	tableRepo := repository.NewTableRepository(pool)
+	tableService := service.NewTableService(tableRepo, slog.Default())
+	tableController := controller.NewTableController(tableService)
+
 	admin := r.Group("/admin")
 	{
 		admin.POST("/login", userController.Login)
@@ -44,6 +49,11 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 	{
 		user.GET("/products", productController.GetAllActive)
 	}
+	table := r.Group("/tables")
+	{
+		table.POST("", tableController.Create)
+	}
+
 }
 
 // func healthHandler(pool *pgxpool.Pool, rdb *redis.Client, cfg *config.Config) gin.HandlerFunc {
