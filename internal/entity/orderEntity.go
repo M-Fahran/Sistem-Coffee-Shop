@@ -13,7 +13,6 @@ type Orders struct {
 	Status          string    `json:"status"`
 	SubTotal        float64   `json:"subtotal"`
 	CreatedAt       time.Time `json:"created_at"`
-
 	Items []OrderItems `json:"items,omitempty"`
 }
 

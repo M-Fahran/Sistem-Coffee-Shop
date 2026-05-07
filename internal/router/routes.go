@@ -51,6 +51,7 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 			adminRoutes.DELETE("/productsAddOn/:id", productAddOnController.DeleteProductAddOn)
 			
 			adminRoutes.GET("/orders", ordersController.GetAllOrders)
+			adminRoutes.GET("/orders/:id", ordersController.GetOrderDetail)
 			
 			adminRoutes.GET("/categories", categoriesController.GetAllCategories)
 			adminRoutes.POST("/categories", categoriesController.CreateCategories)
