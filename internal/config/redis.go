@@ -8,6 +8,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type RedisClient = redis.Client
+
+var RedisNil = redis.Nil
 // Redis client tuning constants.
 //
 // Pool sizing (PoolSize, MinIdleConns) lives in Config because it may vary

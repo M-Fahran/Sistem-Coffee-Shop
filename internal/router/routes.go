@@ -1,12 +1,13 @@
 package router
 
 import (
-	"log/slog"   // ⬅ TAMBAH IMPORT INI
+	"log/slog"   
 	"coffeeshop/internal/config"
 	"coffeeshop/internal/controller"
 	"coffeeshop/internal/middleware"
 	"coffeeshop/internal/repository"
 	"coffeeshop/internal/service"
+	"coffeeshop/internal/support/cache"   // ⬅ TAMBAH
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,7 +36,8 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 	categoriesController := controller.NewCategoriesController(categoriesService)
 
 	tableRepo := repository.NewTableRepository(pool)
-	tableService := service.NewTableService(tableRepo, slog.Default())
+	tableCache := cache.NewTableCache(rdb)
+	tableService := service.NewTableService(tableRepo, tableCache,slog.Default())
 	tableController := controller.NewTableController(tableService)
 
 	admin := r.Group("/admin")
@@ -69,7 +71,12 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 	}
 	table := r.Group("/tables")
 	{
+		table.GET("", tableController.List)
+		table.GET("/:id", tableController.GetByID)
 		table.POST("", tableController.Create)
+		table.PATCH("/:id", tableController.Update)
+		table.DELETE("/:id", tableController.Delete)
+		// table.POST("/bulk-delete", tableController.BulkDelete)
 	}
 
 }
