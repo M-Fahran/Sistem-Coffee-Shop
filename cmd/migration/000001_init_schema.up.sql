@@ -1,12 +1,41 @@
 -- 1. Create Enums
-CREATE TYPE user_role AS ENUM ('admin', 'cashier');
-CREATE TYPE payment_method AS ENUM ('qris', 'va', 'ewallet', 'cash');
-CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'expired');
-CREATE TYPE order_source AS ENUM ('qr', 'cashier');
-CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled');
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('admin', 'cashier');
+    END IF;
+END$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_method') THEN
+        CREATE TYPE payment_method AS ENUM ('qris', 'va', 'ewallet', 'cash');
+    END IF;
+END$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+        CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'expired');
+    END IF;
+END$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_source') THEN
+        CREATE TYPE order_source AS ENUM ('qr', 'cashier');
+    END IF;
+END$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'order_status') THEN
+        CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled');
+    END IF;
+END$$;
 
 -- 2. Create Tables
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
   "id" BIGSERIAL PRIMARY KEY,
   "email" varchar(100),
   "username" varchar(50) UNIQUE,
@@ -16,19 +45,19 @@ CREATE TABLE "users" (
   "created_at" timestamp DEFAULT now()
 );
 
-CREATE TABLE "tables" (
+CREATE TABLE IF NOT EXISTS "tables" (
   "id" BIGSERIAL PRIMARY KEY,
   "number" varchar(20) UNIQUE,
   "qr_token" varchar(64) UNIQUE,
   "is_active" boolean DEFAULT true
 );
 
-CREATE TABLE "categories" (
+CREATE TABLE IF NOT EXISTS "categories" (
   "id" BIGSERIAL PRIMARY KEY,
   "name" varchar(100)
 );
 
-CREATE TABLE "products" (
+CREATE TABLE IF NOT EXISTS "products" (
   "id" BIGSERIAL PRIMARY KEY,
   "category_id" bigint REFERENCES "categories"("id"),
   "name" varchar(150),
@@ -37,7 +66,7 @@ CREATE TABLE "products" (
   "is_active" boolean DEFAULT true
 );
 
-CREATE TABLE "product_addons" (
+CREATE TABLE IF NOT EXISTS "product_addons" (
   "id" BIGSERIAL PRIMARY KEY,
   "name" varchar(100),
   "price" decimal(12,2),
@@ -45,13 +74,13 @@ CREATE TABLE "product_addons" (
   "is_active" boolean DEFAULT true
 );
 
-CREATE TABLE "product_addon_map" (
+CREATE TABLE IF NOT EXISTS "product_addon_map" (
   "id" BIGSERIAL PRIMARY KEY,
   "product_id" bigint REFERENCES "products"("id"),
   "product_addon_id" bigint REFERENCES "product_addons"("id")
 );
 
-CREATE TABLE "payment_transactions" (
+CREATE TABLE IF NOT EXISTS "payment_transactions" (
   "id" BIGSERIAL PRIMARY KEY,
   "payment_ref" varchar(100) UNIQUE,
   "external_id" varchar(100),
@@ -67,7 +96,7 @@ CREATE TABLE "payment_transactions" (
   "created_at" timestamp DEFAULT now()
 );
 
-CREATE TABLE "orders" (
+CREATE TABLE IF NOT EXISTS "orders" (
   "id" BIGSERIAL PRIMARY KEY,
   "order_number" varchar(20) UNIQUE,
   "table_id" bigint REFERENCES "tables"("id"),
@@ -80,7 +109,7 @@ CREATE TABLE "orders" (
   "created_at" timestamp DEFAULT now()
 );
 
-CREATE TABLE "order_items" (
+CREATE TABLE IF NOT EXISTS "order_items" (
   "id" BIGSERIAL PRIMARY KEY,
   "order_id" bigint REFERENCES "orders"("id"),
   "product_id" bigint REFERENCES "products"("id"),
@@ -90,7 +119,7 @@ CREATE TABLE "order_items" (
   "subtotal" decimal(14,2)
 );
 
-CREATE TABLE "order_item_addons" (
+CREATE TABLE IF NOT EXISTS "order_item_addons" (
   "id" BIGSERIAL PRIMARY KEY,
   "order_item_id" bigint REFERENCES "order_items"("id"),
   "product_addon_id" bigint REFERENCES "product_addons"("id"),

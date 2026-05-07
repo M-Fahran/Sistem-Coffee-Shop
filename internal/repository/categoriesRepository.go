@@ -42,6 +42,18 @@ func (r *CategoriesRepository) GetAllCategories(ctx context.Context) ([]entity.C
 	return categories, nil
 }
 
+func (r *CategoriesRepository) GetCategoriesByID(ctx context.Context, id int64) (entity.Categories, error){
+	query := `SELECT id, name FROM categories WHERE id = $1`
+
+	var category entity.Categories
+
+	err := r.db.QueryRow(ctx, query, id).Scan(&category.ID, &category.Name)
+	if err != nil {
+		return category, err
+	}
+	return category, nil
+}
+
 func (r *CategoriesRepository) Create(ctx context.Context, p *entity.Categories) error {
 	query := `INSERT INTO categories (name) VALUES ($1) RETURNING id`
 	err := r.db.QueryRow(ctx, query, p.Name).Scan(&p.ID)

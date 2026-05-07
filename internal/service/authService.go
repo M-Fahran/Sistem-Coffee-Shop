@@ -7,6 +7,7 @@ import (
 
 	"coffeeshop/internal/entity"
 	"coffeeshop/internal/repository"
+	"coffeeshop/internal/request"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -17,11 +18,6 @@ type UserService struct {
 	jwtSecret string
 }
 
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
 func NewUserService(repo *repository.UserRepository, secret string) *UserService {
 	return &UserService{
 		repo: repo,
@@ -29,7 +25,7 @@ func NewUserService(repo *repository.UserRepository, secret string) *UserService
 	}
 }
 
-func (s *UserService) Auth(ctx context.Context, req LoginRequest) (*entity.User, string, error) {
+func (s *UserService) Auth(ctx context.Context, req request.LoginRequest) (*entity.User, string, error) {
 	user, err := s.repo.GetUserByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, "", err

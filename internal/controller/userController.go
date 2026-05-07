@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"coffeeshop/internal/request"
 	"coffeeshop/internal/service"
 	"coffeeshop/internal/support/response"
 	"net/http"
@@ -17,7 +18,7 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 }
 
 func (h *UserHandler) Login(c *gin.Context) {
-	var req service.LoginRequest
+	var req request.LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, response.Error(

@@ -42,6 +42,10 @@ func Error(code int, errCode, message string, details any) Envelope {
 	}
 }
 
+func SendError(c *gin.Context, code int, errCode, message string, details any) {
+	c.JSON(code, Error(code, errCode, message, details))
+}
+
 // OK sends a 200 JSON response.
 func OK(c *gin.Context, message string, data any) {
 	c.JSON(http.StatusOK, Success(http.StatusOK, message, data))
