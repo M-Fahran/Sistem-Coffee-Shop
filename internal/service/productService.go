@@ -5,22 +5,31 @@ import (
 	"coffeeshop/internal/repository"
 	"coffeeshop/internal/request"
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type ProductService struct {
 	productRepo *repository.ProductRepository
 	categoryRepo *repository.CategoriesRepository
+	redisClient *redis.Client
 }
 
 type ProductAddOnService struct {
 	repo *repository.ProductAddOnRepository
 }
 
-func NewProductService(productRepo *repository.ProductRepository, categoryRepo *repository.CategoriesRepository) *ProductService {
+func NewProductService(
+	productRepo *repository.ProductRepository, 
+	categoryRepo *repository.CategoriesRepository,
+	redisClient *redis.Client) *ProductService {
 	return &ProductService{
 		productRepo: productRepo,
 		categoryRepo: categoryRepo,
+		redisClient: redisClient,
 	}
 }
 
@@ -29,6 +38,19 @@ func NewProductAddOnService(repo *repository.ProductAddOnRepository) *ProductAdd
 }
 
 func (s *ProductService) GetAllProducts(ctx context.Context, filterStatus, categoryID string) ([]entity.Product, error) {
+	cacheKey := fmt.Sprintf("products:status:%s:category:%s", filterStatus, categoryID)
+	cacheData, err := s.redisClient.Get(ctx, cacheKey).Result()
+	if err == nil {
+		var products []entity.Product
+		if err := json.Unmarshal([]byte(cacheData), &products); err == nil {
+			fmt.Println("ambil data produk dari redis cache")
+			return products, nil
+		}
+	} else if err != redis.Nil {
+		fmt.Printf("gagal membaca redis: %v\n", err)
+	}
+	fmt.Println("CACHE MISS")
+
 	products, err := s.productRepo.GetAllProduct(ctx, filterStatus, categoryID)
 	if err != nil {
 		return nil, fmt.Errorf("gagal mengambil daftar produk: %w", err)
@@ -37,9 +59,16 @@ func (s *ProductService) GetAllProducts(ctx context.Context, filterStatus, categ
 	for i := range products {
 		addon, err := s.productRepo.GetAddOnByProductID(ctx, products[i].ID)
 		if err != nil {
-			fmt.Printf("Error ambil addon untuk Product ID %d: %v\n", products[i].ID, err)
+			products[i].AddOn = addon
 		}
-		products[i].AddOn = addon
+	}
+
+	productJSON, err := json.Marshal(products)
+	if err == nil {
+		err = s.redisClient.Set(ctx, cacheKey, productJSON, 5*time.Minute).Err()
+		if err != nil {
+			fmt.Printf("gagal menyimpan cache redis: %v\n", err)
+		}
 	}
 	return products, nil
 }

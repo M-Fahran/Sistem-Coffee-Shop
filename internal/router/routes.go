@@ -12,20 +12,20 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *config.Config) {
+func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, redisClient *redis.Client, cfg *config.Config) {
 	userRepo := repository.NewUserRepository(pool)
 	userService := service.NewUserService(userRepo, cfg.JWT.Secret)
 	userController := controller.NewUserHandler(userService)
 
 	productRepo := repository.NewProductRepository(pool)
 	categoriesRepo := repository.NewCategoriesRepository(pool)
-	
-	productService := service.NewProductService(productRepo, categoriesRepo)
+
+	productService := service.NewProductService(productRepo, categoriesRepo, redisClient)
 	productController := controller.NewProductController(productService)
 
 	categoriesService := service.NewCategoriesService(categoriesRepo)
 	categoriesController := controller.NewCategoriesController(categoriesService)
-	
+
 	productAddOnRepo := repository.NewProductAddOnRepository(pool)
 	productAddOnService := service.NewProductAddOnService(productAddOnRepo)
 	productAddOnController := controller.NewProductAddOnController(productAddOnService)
@@ -49,10 +49,10 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, rdb *redis.Client, cfg *conf
 			adminRoutes.POST("/productsAddOn", productAddOnController.CreateProductAddOn)
 			adminRoutes.PUT("/productsAddOn/:id", productAddOnController.UpdateProductAddOn)
 			adminRoutes.DELETE("/productsAddOn/:id", productAddOnController.DeleteProductAddOn)
-			
+
 			adminRoutes.GET("/orders", ordersController.GetAllOrders)
 			adminRoutes.GET("/orders/:id", ordersController.GetOrderDetail)
-			
+
 			adminRoutes.GET("/categories", categoriesController.GetAllCategories)
 			adminRoutes.POST("/categories", categoriesController.CreateCategories)
 			adminRoutes.PUT("/categories/:id", categoriesController.UpdateCategories)
