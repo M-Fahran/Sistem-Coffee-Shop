@@ -15,14 +15,15 @@ import (
 )
 
 func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, redisClient *redis.Client, cfg *config.Config) {
+	categoriesRepo := repository.NewCategoriesRepository(pool)
+	redisCache := cache.NewProductCache(redisClient)
+
 	userRepo := repository.NewUserRepository(pool)
 	userService := service.NewUserService(userRepo, cfg.JWT.Secret)
 	userController := controller.NewUserHandler(userService)
 
 	productRepo := repository.NewProductRepository(pool)
-	categoriesRepo := repository.NewCategoriesRepository(pool)
-
-	productService := service.NewProductService(productRepo, categoriesRepo, redisClient)
+	productService := service.NewProductService(productRepo, categoriesRepo, redisCache)
 	productController := controller.NewProductController(productService)
 
 	categoriesService := service.NewCategoriesService(categoriesRepo)
@@ -48,6 +49,7 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, redisClient *redis.Client, c
 		adminRoutes.Use(middleware.RequireAuth(cfg), middleware.RequireAdmin())
 		{
 			adminRoutes.GET("/products", productController.GetAllProducts)
+			adminRoutes.GET("/products/:id", productController.GetProductByID)
 			adminRoutes.POST("/products", productController.CreateProduct)
 			adminRoutes.PUT("/products/:id", productController.UpdateProduct)
 			adminRoutes.DELETE("/products/:id", productController.DeleteProduct)

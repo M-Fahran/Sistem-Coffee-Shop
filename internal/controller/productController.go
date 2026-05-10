@@ -54,6 +54,24 @@ func (h *ProductController) GetAllProducts(c *gin.Context) {
 	response.OK(c, "Berhasil mengambil produk", products)
 }
 
+func (h *ProductController) GetProductByID(c *gin.Context){
+	idParam := c.Param("id")
+	productID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		response.SendError(c, http.StatusBadRequest, "BAD REQUEST", "FORMAT ID TIDAK VALID", nil)
+		return
+	}
+
+	products, err := h.productService.GetProductByID(c.Request.Context(), productID)
+	if err != nil {
+		log.Printf("[productController.GetProductByID] IP: %s | URL: %s | ERROR: %s\n", c.ClientIP(), c.Request.URL.Path, err)
+		response.SendError(c, http.StatusInternalServerError, "INTERNAL ERROR", "Gagal ambil produk berdasarkan ID", nil)
+		return
+	}
+
+	response.OK(c, "berhasil mengambil produk berdasarkan id", products)
+}
+
 func (h *ProductController) CreateProduct(c *gin.Context) {
 	var req request.CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
