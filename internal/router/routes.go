@@ -73,11 +73,31 @@ func SetupRouter(r *gin.Engine, pool *pgxpool.Pool, redisClient *redis.Client, c
 	}
 	table := r.Group("/tables")
 	{
-		table.GET("", tableController.List)
-		table.GET("/:id", tableController.GetByID)
-		table.POST("", tableController.Create)
-		table.PATCH("/:id", tableController.Update)
-		table.DELETE("/:id", tableController.Delete)
+		table.GET(
+			"", 
+			middleware.RateLimitGet(redisClient),
+			tableController.List,
+		)
+		table.GET(
+			"/:id", 
+			middleware.RateLimitGet(redisClient),
+			tableController.GetByID,
+		)
+		table.POST(
+			"", 
+			middleware.RateLimitCreate(redisClient),
+			tableController.Create,
+		)
+		table.PATCH(
+			"/:id", 
+			middleware.RateLimitUpdate(redisClient),
+			tableController.Update,
+		)
+		table.DELETE(
+			"/:id", 
+			middleware.RateLimitDelete(redisClient),
+			tableController.Delete,
+		)
 		// table.POST("/bulk-delete", tableController.BulkDelete)
 	}
 

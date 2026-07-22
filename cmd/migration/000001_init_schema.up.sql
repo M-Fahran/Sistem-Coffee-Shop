@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS "payment_transactions" (
   "payment_method" payment_method,
   "provider" varchar(50),
   "status" payment_status,
+  "customer_email" varchar(255),
   "handled_by_user_id" bigint REFERENCES "users"("id"),
   "user_agent" text,
   "ip_address" varchar(45),

@@ -9,6 +9,7 @@ import (
 )
 
 type RedisClient = redis.Client
+type RedisZ = redis.Z
 
 var RedisNil = redis.Nil
 // Redis client tuning constants.
