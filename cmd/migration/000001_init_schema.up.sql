@@ -129,3 +129,6 @@ CREATE TABLE IF NOT EXISTS "order_item_addons" (
   "quantity" int,
   "subtotal" decimal(14,2)
 );
+
+CREATE SEQUENCE IF NOT EXISTS order_number_seq START 1;
+CREATE SEQUENCE IF NOT EXISTS payment_ref_seq  START 1;

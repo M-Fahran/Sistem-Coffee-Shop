@@ -1,14 +1,28 @@
 package entity
 
-import "time"
+import (
+	"time"
 
+	"coffeeshop/internal/config"
+)
+
+// User adalah akun staff (admin atau kasir).
+//
+// ID int64 supaya seragam dengan entity lain — sebelumnya `uint`, yang
+// memaksa konversi manual setiap kali dipakai.
+//
+// Tag GORM sudah dibuang: project ini memakai pgx, jadi tag tersebut
+// metadata mati yang menyesatkan pembaca berikutnya.
 type User struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Email     string    `gorm:"uniqueIndex;not null" json:"email"`
-	Username  string    `gorm:"not null" json:"username"`
-	Password  string    `gorm:"not null" json:"-"` 
-	Role      string    `gorm:"type:varchar(50);not null;default:'cashier'" json:"role"`
-	IsActive  bool      `gorm:"not null;default:true" json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        int64           `json:"id"`
+	Email     string          `json:"email"`
+	Username  string          `json:"username"`
+	Password  string          `json:"-"` // tidak pernah keluar lewat JSON
+	Role      config.UserRole `json:"role"`
+	IsActive  bool            `json:"is_active"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
+
+// IsAdmin lebih aman daripada membandingkan string.
+func (u *User) IsAdmin() bool { return u.Role == config.UserRoleAdmin }

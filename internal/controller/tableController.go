@@ -105,6 +105,34 @@ func (h *TableController) Delete(c *gin.Context){
 	response.NoContent(c)
 }
 
+// RotateQR POST /api/v1/tables/:id/rotate-qr
+func (h *TableController) RotateQR(c *gin.Context) {
+	id, err := tableReq.BindIDParam(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	t, err := h.svc.RotateQRToken(c.Request.Context(), id)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	response.OK(c, "QR token rotated, existing sessions revoked", t)
+}
+
+// EndSessions POST /api/v1/tables/:id/end-sessions
+func (h *TableController) EndSessions(c *gin.Context) {
+	id, err := tableReq.BindIDParam(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.svc.EndSessions(c.Request.Context(), id); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	response.OK(c, "table sessions ended", nil)
+}
 //BulkDelete POST /api/tables/bulk-delete
 // func (h *TableController) BulkDelete(c *gin.Context){
 // 	req, err := tableReq.BindBulkDelete(c)

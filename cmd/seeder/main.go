@@ -5,8 +5,10 @@
 //	go run ./cmd/seeder
 //
 // Seeder ini destruktif: semua tabel di-TRUNCATE dulu, lalu diisi ulang.
-// Data yang dihasilkan deterministik (fixed random seed), jadi hasilnya
-// selalu sama setiap kali dijalankan.
+// Data yang dihasilkan deterministik (fixed random seed).
+//
+// Enum diambil dari internal/config, jadi kalau nilainya berubah seeder
+// ikut gagal compile — bukan diam-diam menulis angka yang salah.
 package main
 
 import (
@@ -26,35 +28,35 @@ import (
 
 const (
 	totalOrders  = 100
-	historyDays  = 30 // transaksi tersebar dalam 30 hari terakhir
+	historyDays  = 30
 	randSeed     = 2026
-	seedPassword = "password123" // password semua user hasil seeder
+	seedPassword = "password123"
 )
 
 // ============================================================================
-// Model bantu (bukan entity produksi, khusus seeder)
+// Model bantu (khusus seeder)
 // ============================================================================
 
 type product struct {
 	ID         int64
 	CategoryID int64
 	Name       string
-	Price      float64
+	Price      int64 // rupiah penuh
 	Stock      int
 	IsActive   bool
-	Addonable  bool // true = minuman, boleh punya add-on
+	Addonable  bool
 }
 
 type addon struct {
 	ID    int64
 	Name  string
-	Price float64
+	Price int64
 }
 
 type appUser struct {
 	ID       int64
 	Username string
-	Role     string
+	Role     config.UserRole
 	IsActive bool
 }
 
@@ -63,9 +65,26 @@ type diningTable struct {
 	Number string
 }
 
-type weighted struct {
-	value  string
+// weighted[T] memungkinkan pengundian berbobot untuk tipe apa pun,
+// termasuk enum — tidak perlu mengoper string lalu menerjemahkannya.
+type weighted[T any] struct {
+	value  T
 	weight int
+}
+
+func pickWeighted[T any](rnd *rand.Rand, items []weighted[T]) T {
+	total := 0
+	for _, it := range items {
+		total += it.weight
+	}
+	n := rnd.Intn(total)
+	for _, it := range items {
+		n -= it.weight
+		if n < 0 {
+			return it.value
+		}
+	}
+	return items[len(items)-1].value
 }
 
 type seeder struct {
@@ -76,15 +95,15 @@ type seeder struct {
 	categories map[string]int64
 	products   []product
 	addons     []addon
-	addonMap   map[int64][]addon // productID -> add-on yang tersedia
+	addonMap   map[int64][]addon
 	users      []appUser
 	cashiers   []appUser
 	tables     []diningTable
 
-	sold      map[int64]int // productID -> qty terjual (untuk potong stok)
+	sold      map[int64]int
 	orderSeq  map[string]int
 	payment   int
-	revenue   float64
+	revenue   int64
 	itemCount int
 	withEmail int
 }
@@ -156,10 +175,6 @@ func main() {
 	s.printSummary(time.Since(start))
 }
 
-// ============================================================================
-// Truncate
-// ============================================================================
-
 func (s *seeder) truncate() {
 	s.mustExec(`
 		TRUNCATE TABLE
@@ -184,7 +199,7 @@ func (s *seeder) seedProducts() {
 	type seedProduct struct {
 		category string
 		name     string
-		price    float64
+		price    int64
 	}
 
 	drinks := []seedProduct{
@@ -216,7 +231,7 @@ func (s *seeder) seedProducts() {
 		{"Snack", "Banana Bread", 20000},
 	}
 
-	insert := func(sp seedProduct, addonable bool, active bool) {
+	insert := func(sp seedProduct, addonable, active bool) {
 		stock := 80 + s.rnd.Intn(170)
 		id := s.mustID(`
 			INSERT INTO products (category_id, name, base_price, stock, is_active)
@@ -238,7 +253,7 @@ func (s *seeder) seedProducts() {
 		insert(d, true, true)
 	}
 	for _, f := range foods {
-		// "Banana Bread" sengaja dibuat non-aktif untuk testing filter is_active
+		// "Banana Bread" sengaja non-aktif untuk testing filter is_active
 		insert(f, false, f.name != "Banana Bread")
 	}
 }
@@ -246,7 +261,7 @@ func (s *seeder) seedProducts() {
 func (s *seeder) seedAddons() {
 	list := []struct {
 		name  string
-		price float64
+		price int64
 	}{
 		{"Extra Shot", 5000},
 		{"Syrup Caramel", 5000},
@@ -268,7 +283,6 @@ func (s *seeder) seedAddons() {
 	}
 }
 
-// seedAddonMap memberi setiap minuman 3-6 add-on acak.
 func (s *seeder) seedAddonMap() {
 	for _, p := range s.products {
 		if !p.Addonable {
@@ -279,9 +293,7 @@ func (s *seeder) seedAddonMap() {
 		copy(pool, s.addons)
 		s.rnd.Shuffle(len(pool), func(i, j int) { pool[i], pool[j] = pool[j], pool[i] })
 
-		n := 3 + s.rnd.Intn(4)
-		selected := pool[:n]
-
+		selected := pool[:3+s.rnd.Intn(4)]
 		for _, a := range selected {
 			s.mustExec(`
 				INSERT INTO product_addon_map (product_id, product_addon_id)
@@ -299,32 +311,31 @@ func (s *seeder) seedUsers() {
 
 	list := []struct {
 		username string
-		role     string
+		role     config.UserRole
 		active   bool
 	}{
-		{"bimbim", "admin", true},
-		{"sari", "admin", true},
-		{"budi", "cashier", true},
-		{"dimas", "cashier", true},
-		{"rina", "cashier", true},
-		{"agus", "cashier", true},
-		{"dewi", "cashier", true},
-		{"fajar", "cashier", true},
-		{"nadia", "cashier", true},
-		{"rizky", "cashier", false}, // resigned — untuk testing akun non-aktif
+		{"bimbim", config.UserRoleAdmin, true},
+		{"sari", config.UserRoleAdmin, true},
+		{"budi", config.UserRoleCashier, true},
+		{"dimas", config.UserRoleCashier, true},
+		{"rina", config.UserRoleCashier, true},
+		{"agus", config.UserRoleCashier, true},
+		{"dewi", config.UserRoleCashier, true},
+		{"fajar", config.UserRoleCashier, true},
+		{"nadia", config.UserRoleCashier, true},
+		{"rizky", config.UserRoleCashier, false}, // resigned
 	}
 
 	for _, u := range list {
-		email := u.username + "@coffeeshop.id"
+		createdAt := time.Now().AddDate(0, 0, -(60 + s.rnd.Intn(120)))
 		id := s.mustID(`
-			INSERT INTO users (email, username, password, role, is_active, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-			email, u.username, string(hashed), u.role, u.active,
-			time.Now().AddDate(0, 0, -(60 + s.rnd.Intn(120))))
+			INSERT INTO users (email, username, password, role, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $6) RETURNING id`,
+			u.username+"@coffeeshop.id", u.username, string(hashed), u.role, u.active, createdAt)
 
 		au := appUser{ID: id, Username: u.username, Role: u.role, IsActive: u.active}
 		s.users = append(s.users, au)
-		if u.role == "cashier" && u.active {
+		if u.role == config.UserRoleCashier && u.active {
 			s.cashiers = append(s.cashiers, au)
 		}
 	}
@@ -334,7 +345,7 @@ func (s *seeder) seedTables() {
 	numbers := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Bar-1", "Bar-2"}
 
 	for i, n := range numbers {
-		active := i != len(numbers)-1 // meja terakhir non-aktif (sedang diperbaiki)
+		active := i != len(numbers)-1 // meja terakhir sedang diperbaiki
 		id := s.mustID(`
 			INSERT INTO tables (number, qr_token, is_active)
 			VALUES ($1, $2, $3) RETURNING id`,
@@ -362,15 +373,33 @@ func (s *seeder) seedTransactions() {
 	}
 }
 
+type cartAddon struct {
+	a        addon
+	qty      int
+	subtotal int64
+}
+
+type cartItem struct {
+	p        product
+	qty      int
+	subtotal int64
+	notes    *string
+	addons   []cartAddon
+}
+
 func (s *seeder) createOrder(createdAt time.Time) {
-	source := s.pick([]weighted{{"qr", 70}, {"cashier", 30}})
+	source := pickWeighted(s.rnd, []weighted[config.OrderSource]{
+		{config.OrderSourceQR, 70},
+		{config.OrderSourceCashier, 30},
+	})
 
 	var tableID, createdByUserID *int64
 
-	if source == "qr" {
+	if source == config.OrderSourceQR {
 		t := s.tables[s.rnd.Intn(len(s.tables))]
 		tableID = &t.ID
 	} else {
+		// CHECK constraint mewajibkan pesanan kasir punya pencatat.
 		c := s.cashiers[s.rnd.Intn(len(s.cashiers))]
 		createdByUserID = &c.ID
 		if s.rnd.Float64() < 0.6 { // 60% dine-in, sisanya take away
@@ -379,40 +408,45 @@ func (s *seeder) createOrder(createdAt time.Time) {
 		}
 	}
 
-	// --- susun keranjang ---
-	type cartAddon struct {
-		a        addon
-		qty      int
-		subtotal float64
-	}
-	type cartItem struct {
-		p        product
-		qty      int
-		subtotal float64
-		addons   []cartAddon
+	cart, subtotal := s.buildCart()
+
+	customerName := s.customerName()
+	customerEmail := s.customerEmail(customerName, source)
+	if customerEmail != nil {
+		s.withEmail++
 	}
 
-	itemCount := s.rnd.Intn(4) + 1 // 1-4 jenis produk
-	picked := s.pickProducts(itemCount)
+	paymentID := s.insertPayment(createdAt, source, subtotal, customerEmail, createdByUserID)
+	orderID, orderStatus := s.insertOrder(createdAt, source, subtotal, customerName, paymentID, tableID, createdByUserID)
+	s.insertItems(orderID, orderStatus, cart)
+}
+
+func (s *seeder) buildCart() ([]cartItem, int64) {
+	picked := s.pickProducts(s.rnd.Intn(4) + 1)
 
 	var (
 		cart     []cartItem
-		subtotal float64
+		subtotal int64
 	)
 
 	for _, p := range picked {
 		qty := s.pickQty()
-		item := cartItem{p: p, qty: qty, subtotal: p.Price * float64(qty)}
+		item := cartItem{p: p, qty: qty, subtotal: p.Price * int64(qty)}
 		subtotal += item.subtotal
 
+		if s.rnd.Float64() < 0.15 {
+			notes := []string{"es sedikit", "tanpa gula", "less sugar", "extra panas", "pisah saus"}
+			n := notes[s.rnd.Intn(len(notes))]
+			item.notes = &n
+		}
+
 		if available := s.addonMap[p.ID]; len(available) > 0 && s.rnd.Float64() < 0.45 {
-			nAddon := 1 + s.rnd.Intn(2)
 			shuffled := make([]addon, len(available))
 			copy(shuffled, available)
 			s.rnd.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
 
-			for _, a := range shuffled[:nAddon] {
-				ca := cartAddon{a: a, qty: qty, subtotal: a.Price * float64(qty)}
+			for _, a := range shuffled[:1+s.rnd.Intn(2)] {
+				ca := cartAddon{a: a, qty: qty, subtotal: a.Price * int64(qty)}
 				item.addons = append(item.addons, ca)
 				subtotal += ca.subtotal
 			}
@@ -420,28 +454,36 @@ func (s *seeder) createOrder(createdAt time.Time) {
 
 		cart = append(cart, item)
 	}
+	return cart, subtotal
+}
 
-	// --- identitas pelanggan ---
-	customerName := s.customerName()
-	customerEmail := s.customerEmail(customerName, source)
-	if customerEmail != nil {
-		s.withEmail++
-	}
-
-	// --- pembayaran ---
+func (s *seeder) insertPayment(
+	createdAt time.Time,
+	source config.OrderSource,
+	amount int64,
+	customerEmail *string,
+	createdByUserID *int64,
+) int64 {
 	method := s.paymentMethod(source)
-	payStatus := s.pick([]weighted{{"paid", 85}, {"pending", 8}, {"expired", 4}, {"failed", 3}})
+	status := pickWeighted(s.rnd, []weighted[config.PaymentStatus]{
+		{config.PaymentStatusPaid, 85},
+		{config.PaymentStatusPending, 8},
+		{config.PaymentStatusExpired, 4},
+		{config.PaymentStatusFailed, 3},
+	})
 
+	// CHECK constraint: paid_at wajib terisi kalau paid, wajib NULL kalau bukan.
 	var paidAt *time.Time
-	if payStatus == "paid" {
+	if status == config.PaymentStatusPaid {
 		t := createdAt.Add(time.Duration(30+s.rnd.Intn(270)) * time.Second)
 		paidAt = &t
+		s.revenue += amount
 	}
 
 	var handledBy *int64
-	if source == "cashier" {
+	if source == config.OrderSourceCashier {
 		handledBy = createdByUserID
-	} else if payStatus == "paid" && s.rnd.Float64() < 0.5 {
+	} else if status == config.PaymentStatusPaid && s.rnd.Float64() < 0.5 {
 		c := s.cashiers[s.rnd.Intn(len(s.cashiers))]
 		handledBy = &c.ID
 	}
@@ -450,44 +492,57 @@ func (s *seeder) createOrder(createdAt time.Time) {
 	paymentRef := fmt.Sprintf("PAY-%s-%04d", createdAt.Format("20060102"), s.payment)
 	externalID := fmt.Sprintf("%s-%s", s.providerPrefix(method), s.randHex(12))
 
-	var payload any
-	if method != "cash" {
-		payload = fmt.Sprintf(
-			`{"transaction_id":"%s","gross_amount":"%.2f","payment_type":"%s","transaction_status":"%s"}`,
-			externalID, subtotal, method, payStatus)
+	var payload *string
+	if method.IsOnline() {
+		p := fmt.Sprintf(
+			`{"transaction_id":%q,"gross_amount":"%d","payment_type":%q,"transaction_status":%q}`,
+			externalID, amount, method.String(), status.String())
+		payload = &p
 	}
 
-	paymentID := s.mustID(`
+	return s.mustID(`
 		INSERT INTO payment_transactions
 			(payment_ref, external_id, amount, payment_method, provider, status,
 			 customer_email, handled_by_user_id, user_agent, ip_address,
 			 payload, paid_at, created_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-		paymentRef, externalID, subtotal, method, s.provider(method), payStatus,
+		paymentRef, externalID, amount, method, s.provider(method), status,
 		customerEmail, handledBy, s.userAgent(source), s.ipAddress(source),
 		payload, paidAt, createdAt)
+}
 
-	// --- order ---
-	orderStatus := s.orderStatus(payStatus)
+func (s *seeder) insertOrder(
+	createdAt time.Time,
+	source config.OrderSource,
+	subtotal int64,
+	customerName string,
+	paymentID int64,
+	tableID, createdByUserID *int64,
+) (int64, config.OrderStatus) {
+	status := s.orderStatus(createdAt)
+
 	day := createdAt.Format("20060102")
 	s.orderSeq[day]++
 	orderNumber := fmt.Sprintf("ORD-%s-%03d", day, s.orderSeq[day])
 
-	orderID := s.mustID(`
+	id := s.mustID(`
 		INSERT INTO orders
 			(order_number, table_id, customer_name, payment_id, source,
-			 created_by_user_id, status, subtotal, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+			 created_by_user_id, status, subtotal, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING id`,
 		orderNumber, tableID, customerName, paymentID, source,
-		createdByUserID, orderStatus, subtotal, createdAt)
+		createdByUserID, status, subtotal, createdAt)
 
-	// --- item & add-on ---
+	return id, status
+}
+
+func (s *seeder) insertItems(orderID int64, status config.OrderStatus, cart []cartItem) {
 	for _, item := range cart {
 		itemID := s.mustID(`
 			INSERT INTO order_items
-				(order_id, product_id, product_name, unit_price, quantity, subtotal)
-			VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-			orderID, item.p.ID, item.p.Name, item.p.Price, item.qty, item.subtotal)
+				(order_id, product_id, product_name, unit_price, quantity, subtotal, notes)
+			VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+			orderID, item.p.ID, item.p.Name, item.p.Price, item.qty, item.subtotal, item.notes)
 
 		for _, ca := range item.addons {
 			s.mustExec(`
@@ -497,18 +552,13 @@ func (s *seeder) createOrder(createdAt time.Time) {
 				itemID, ca.a.ID, ca.a.Name, ca.a.Price, ca.qty, ca.subtotal)
 		}
 
-		if orderStatus != "cancelled" {
+		if status != config.OrderStatusCancelled {
 			s.sold[item.p.ID] += item.qty
 		}
 		s.itemCount++
 	}
-
-	if payStatus == "paid" {
-		s.revenue += subtotal
-	}
 }
 
-// adjustStock memotong stok produk sesuai qty yang terjual.
 func (s *seeder) adjustStock() {
 	for i, p := range s.products {
 		remaining := p.Stock - s.sold[p.ID]
@@ -528,7 +578,6 @@ func (s *seeder) randomOrderTime() time.Time {
 	now := time.Now()
 	day := now.AddDate(0, 0, -s.rnd.Intn(historyDays))
 
-	// jam operasional 08:00 - 21:59
 	t := time.Date(day.Year(), day.Month(), day.Day(),
 		8+s.rnd.Intn(14), s.rnd.Intn(60), s.rnd.Intn(60), 0, time.Local)
 
@@ -539,14 +588,13 @@ func (s *seeder) randomOrderTime() time.Time {
 }
 
 func (s *seeder) pickProducts(n int) []product {
-	// minuman dimasukkan 2x supaya lebih sering terpilih
 	pool := make([]product, 0, len(s.products)*2)
 	for _, p := range s.products {
 		if !p.IsActive {
 			continue
 		}
 		pool = append(pool, p)
-		if p.Addonable {
+		if p.Addonable { // minuman lebih sering dipesan
 			pool = append(pool, p)
 		}
 	}
@@ -568,61 +616,74 @@ func (s *seeder) pickProducts(n int) []product {
 }
 
 func (s *seeder) pickQty() int {
-	switch s.pick([]weighted{{"1", 60}, {"2", 30}, {"3", 10}}) {
-	case "1":
-		return 1
-	case "2":
-		return 2
-	default:
-		return 3
-	}
+	return pickWeighted(s.rnd, []weighted[int]{{1, 60}, {2, 30}, {3, 10}})
 }
 
-func (s *seeder) paymentMethod(source string) string {
-	if source == "qr" {
-		return s.pick([]weighted{{"qris", 75}, {"ewallet", 20}, {"va", 5}})
+func (s *seeder) paymentMethod(source config.OrderSource) config.PaymentMethod {
+	if source == config.OrderSourceQR {
+		return pickWeighted(s.rnd, []weighted[config.PaymentMethod]{
+			{config.PaymentMethodQRIS, 75},
+			{config.PaymentMethodEWallet, 20},
+			{config.PaymentMethodVA, 5},
+		})
 	}
-	return s.pick([]weighted{{"cash", 55}, {"qris", 30}, {"ewallet", 10}, {"va", 5}})
+	return pickWeighted(s.rnd, []weighted[config.PaymentMethod]{
+		{config.PaymentMethodCash, 55},
+		{config.PaymentMethodQRIS, 30},
+		{config.PaymentMethodEWallet, 10},
+		{config.PaymentMethodVA, 5},
+	})
 }
 
-func (s *seeder) provider(method string) string {
+func (s *seeder) provider(method config.PaymentMethod) string {
 	switch method {
-	case "qris":
+	case config.PaymentMethodQRIS:
 		return "Midtrans"
-	case "va":
-		return s.pick([]weighted{{"BCA Virtual Account", 40}, {"BNI Virtual Account", 30}, {"Mandiri Virtual Account", 30}})
-	case "ewallet":
-		return s.pick([]weighted{{"GoPay", 40}, {"OVO", 35}, {"DANA", 25}})
+	case config.PaymentMethodVA:
+		return pickWeighted(s.rnd, []weighted[string]{
+			{"BCA Virtual Account", 40},
+			{"BNI Virtual Account", 30},
+			{"Mandiri Virtual Account", 30},
+		})
+	case config.PaymentMethodEWallet:
+		return pickWeighted(s.rnd, []weighted[string]{
+			{"GoPay", 40}, {"OVO", 35}, {"DANA", 25},
+		})
 	default:
 		return "Internal"
 	}
 }
 
-func (s *seeder) providerPrefix(method string) string {
+func (s *seeder) providerPrefix(method config.PaymentMethod) string {
 	switch method {
-	case "qris":
+	case config.PaymentMethodQRIS:
 		return "QRIS"
-	case "va":
+	case config.PaymentMethodVA:
 		return "VA"
-	case "ewallet":
+	case config.PaymentMethodEWallet:
 		return "EW"
 	default:
 		return "CASH"
 	}
 }
 
-// orderStatus menurunkan status order dari status pembayaran agar data konsisten.
-func (s *seeder) orderStatus(payStatus string) string {
-	switch payStatus {
-	case "paid":
-		return s.pick([]weighted{
-			{"completed", 70}, {"ready", 12}, {"preparing", 10}, {"confirmed", 8},
+// orderStatus menurunkan status pesanan dari umur transaksinya, supaya
+// dashboard kasir punya campuran data yang masuk akal untuk diuji.
+func (s *seeder) orderStatus(createdAt time.Time) config.OrderStatus {
+	if time.Since(createdAt) > 12*time.Hour {
+		return pickWeighted(s.rnd, []weighted[config.OrderStatus]{
+			{config.OrderStatusCompleted, 90},
+			{config.OrderStatusCancelled, 10},
 		})
-	case "pending":
-		return "pending"
-	default: // failed / expired
-		return "cancelled"
 	}
+	return pickWeighted(s.rnd, []weighted[config.OrderStatus]{
+		{config.OrderStatusCompleted, 40},
+		{config.OrderStatusReady, 15},
+		{config.OrderStatusPreparing, 15},
+		{config.OrderStatusConfirmed, 12},
+		{config.OrderStatusPending, 12},
+		{config.OrderStatusCancelled, 6},
+	})
 }
 
 func (s *seeder) customerName() string {
@@ -638,12 +699,9 @@ func (s *seeder) customerName() string {
 	return first[s.rnd.Intn(len(first))] + " " + last[s.rnd.Intn(len(last))]
 }
 
-// customerEmail menurunkan email dari nama pelanggan.
-// Nullable: pesanan via QR hampir selalu isi email (buat struk digital),
-// pesanan kasir sering tidak diisi karena bayar cash langsung.
-func (s *seeder) customerEmail(name, source string) *string {
+func (s *seeder) customerEmail(name string, source config.OrderSource) *string {
 	fillRate := 0.4
-	if source == "qr" {
+	if source == config.OrderSourceQR {
 		fillRate = 0.9
 	}
 	if s.rnd.Float64() > fillRate {
@@ -658,8 +716,8 @@ func (s *seeder) customerEmail(name, source string) *string {
 	return &email
 }
 
-func (s *seeder) userAgent(source string) string {
-	if source == "cashier" {
+func (s *seeder) userAgent(source config.OrderSource) string {
+	if source == config.OrderSourceCashier {
 		return "CoffeeShop-POS/1.0 (Windows NT 10.0; Win64; x64)"
 	}
 	agents := []string{
@@ -670,8 +728,8 @@ func (s *seeder) userAgent(source string) string {
 	return agents[s.rnd.Intn(len(agents))]
 }
 
-func (s *seeder) ipAddress(source string) string {
-	if source == "cashier" {
+func (s *seeder) ipAddress(source config.OrderSource) string {
+	if source == config.OrderSourceCashier {
 		return fmt.Sprintf("192.168.1.%d", 2+s.rnd.Intn(50))
 	}
 	return fmt.Sprintf("%d.%d.%d.%d",
@@ -685,21 +743,6 @@ func (s *seeder) randHex(n int) string {
 		b[i] = hexChars[s.rnd.Intn(len(hexChars))]
 	}
 	return string(b)
-}
-
-func (s *seeder) pick(items []weighted) string {
-	total := 0
-	for _, it := range items {
-		total += it.weight
-	}
-	n := s.rnd.Intn(total)
-	for _, it := range items {
-		n -= it.weight
-		if n < 0 {
-			return it.value
-		}
-	}
-	return items[len(items)-1].value
 }
 
 // ============================================================================
@@ -736,7 +779,7 @@ func (s *seeder) printSummary(elapsed time.Duration) {
 	fmt.Printf("  Orders            : %d\n", totalOrders)
 	fmt.Printf("  Order items       : %d\n", s.itemCount)
 	fmt.Printf("  Punya email       : %d dari %d transaksi\n", s.withEmail, totalOrders)
-	fmt.Printf("  Revenue (paid)    : Rp %.0f\n", s.revenue)
+	fmt.Printf("  Revenue (paid)    : Rp %d\n", s.revenue)
 	fmt.Printf("  Durasi            : %s\n", elapsed.Round(time.Millisecond))
 	fmt.Println("────────────────────────────────────")
 	fmt.Printf("  Login: bimbim@coffeeshop.id / %s (admin)\n", seedPassword)

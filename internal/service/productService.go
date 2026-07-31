@@ -1,21 +1,30 @@
 package service
 
 import (
-	"coffeeshop/internal/entity"
-	"coffeeshop/internal/repository"
-	"coffeeshop/internal/request"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"coffeeshop/internal/entity"
+	"coffeeshop/internal/repository"
+	"coffeeshop/internal/request"
 )
 
+const productCacheTTL = 5 * time.Minute
+
+// productCachePrefix dipakai untuk menghapus seluruh varian cache produk
+// sekaligus saat ada perubahan data.
+const productCachePrefix = "products:"
+
 type ProductService struct {
-	productRepo *repository.ProductRepository
+	productRepo  *repository.ProductRepository
 	categoryRepo *repository.CategoriesRepository
-	redisClient *redis.Client
+	redisClient  *redis.Client
 }
 
 type ProductAddOnService struct {
@@ -23,13 +32,14 @@ type ProductAddOnService struct {
 }
 
 func NewProductService(
-	productRepo *repository.ProductRepository, 
+	productRepo *repository.ProductRepository,
 	categoryRepo *repository.CategoriesRepository,
-	redisClient *redis.Client) *ProductService {
+	redisClient *redis.Client,
+) *ProductService {
 	return &ProductService{
-		productRepo: productRepo,
+		productRepo:  productRepo,
 		categoryRepo: categoryRepo,
-		redisClient: redisClient,
+		redisClient:  redisClient,
 	}
 }
 
@@ -37,48 +47,58 @@ func NewProductAddOnService(repo *repository.ProductAddOnRepository) *ProductAdd
 	return &ProductAddOnService{repo: repo}
 }
 
+// ============================================================================
+// Read
+// ============================================================================
+
 func (s *ProductService) GetAllProducts(ctx context.Context, filterStatus, categoryID string) ([]entity.Product, error) {
-	cacheKey := fmt.Sprintf("products:status:%s:category:%s", filterStatus, categoryID)
-	cacheData, err := s.redisClient.Get(ctx, cacheKey).Result()
-	if err == nil {
+	cacheKey := fmt.Sprintf("%sstatus:%s:category:%s", productCachePrefix, filterStatus, categoryID)
+
+	if cached, err := s.redisClient.Get(ctx, cacheKey).Bytes(); err == nil {
 		var products []entity.Product
-		if err := json.Unmarshal([]byte(cacheData), &products); err == nil {
-			fmt.Println("ambil data produk dari redis cache")
+		if err := json.Unmarshal(cached, &products); err == nil {
 			return products, nil
 		}
-	} else if err != redis.Nil {
-		fmt.Printf("gagal membaca redis: %v\n", err)
+		// Cache rusak — buang, lalu ambil dari database.
+		_ = s.redisClient.Del(ctx, cacheKey).Err()
+	} else if !errors.Is(err, redis.Nil) {
+		slog.Warn("product cache read failed", "key", cacheKey, "err", err)
 	}
-	fmt.Println("CACHE MISS")
 
 	products, err := s.productRepo.GetAllProduct(ctx, filterStatus, categoryID)
 	if err != nil {
 		return nil, fmt.Errorf("gagal mengambil daftar produk: %w", err)
 	}
 
+	// BUG LAMA: kondisinya terbalik — `if err != nil { products[i].AddOn = addon }`.
+	// Add-on hanya di-assign ketika query GAGAL, jadi menu tidak pernah
+	// membawa add-on sama sekali.
 	for i := range products {
-		addon, err := s.productRepo.GetAddOnByProductID(ctx, products[i].ID)
+		addons, err := s.productRepo.GetAddOnByProductID(ctx, products[i].ID)
 		if err != nil {
-			products[i].AddOn = addon
+			return nil, fmt.Errorf("gagal mengambil add-on produk %d: %w", products[i].ID, err)
+		}
+		products[i].Addons = addons
+	}
+
+	if payload, err := json.Marshal(products); err == nil {
+		if err := s.redisClient.Set(ctx, cacheKey, payload, productCacheTTL).Err(); err != nil {
+			slog.Warn("product cache write failed", "key", cacheKey, "err", err)
 		}
 	}
 
-	productJSON, err := json.Marshal(products)
-	if err == nil {
-		err = s.redisClient.Set(ctx, cacheKey, productJSON, 5*time.Minute).Err()
-		if err != nil {
-			fmt.Printf("gagal menyimpan cache redis: %v\n", err)
-		}
-	}
 	return products, nil
 }
 
+// ============================================================================
+// Write
+// ============================================================================
+
 func (s *ProductService) CreateProduct(ctx context.Context, req request.CreateProductRequest) (int64, error) {
-	_, err := s.categoryRepo.GetCategoriesByID(ctx, req.CategoryID)
-	if err != nil {
+	if _, err := s.categoryRepo.GetCategoriesByID(ctx, req.CategoryID); err != nil {
 		return 0, fmt.Errorf("kategori dengan ID %d tidak valid/tidak ditemukan", req.CategoryID)
 	}
-	
+
 	product := entity.Product{
 		CategoryID: req.CategoryID,
 		Name:       req.Name,
@@ -86,128 +106,149 @@ func (s *ProductService) CreateProduct(ctx context.Context, req request.CreatePr
 		Stock:      req.Stock,
 		IsActive:   true,
 	}
-	
+
 	newID, err := s.productRepo.CreateProduct(ctx, &product)
 	if err != nil {
 		return 0, fmt.Errorf("gagal menyimpan produk ke database: %w", err)
 	}
 
 	if len(req.AddonID) > 0 {
-		err = s.productRepo.SyncProductAddOn(ctx, newID, req.AddonID)
-		if err != nil {
+		if err := s.productRepo.SyncProductAddOn(ctx, newID, req.AddonID); err != nil {
 			return newID, fmt.Errorf("produk berhasil dibuat namun gagal menambahkan addOn: %w", err)
 		}
 	}
 
+	s.invalidateCache(ctx)
 	return newID, nil
 }
 
 func (s *ProductService) UpdateProduct(ctx context.Context, id int64, req request.UpdateProductRequest) error {
-	existingProduct, err := s.productRepo.GetProductByID(ctx, id)
+	existing, err := s.productRepo.GetProductByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("produk dengan ID %d tidak ditemukan: %w", id, err)
 	}
 
 	if req.CategoryID != nil {
-		existingProduct.CategoryID = *req.CategoryID
+		existing.CategoryID = *req.CategoryID
 	}
-
 	if req.Name != nil {
-		existingProduct.Name = *req.Name
+		existing.Name = *req.Name
 	}
-
 	if req.Price != nil {
-		existingProduct.BasePrice = *req.Price
+		existing.BasePrice = *req.Price
 	}
-
 	if req.Stock != nil {
-		existingProduct.Stock = *req.Stock
+		existing.Stock = *req.Stock
+	}
+	if req.IsActive != nil {
+		existing.IsActive = *req.IsActive
 	}
 
-	if req.Is_Active != nil {
-		existingProduct.IsActive = *req.Is_Active
-	}
-
-	err = s.productRepo.UpdateProduct(ctx, &existingProduct)
-
-	if err != nil {
-		return fmt.Errorf("gagal mengupdate produk (ID: %d) : %w", id, err)
+	if err := s.productRepo.UpdateProduct(ctx, &existing); err != nil {
+		return fmt.Errorf("gagal mengupdate produk (ID: %d): %w", id, err)
 	}
 
 	if req.AddonID != nil {
-		err = s.productRepo.SyncProductAddOn(ctx, id, req.AddonID)
-		if err != nil {
+		if err := s.productRepo.SyncProductAddOn(ctx, id, req.AddonID); err != nil {
 			return fmt.Errorf("gagal sinkron addOn: %w", err)
 		}
 	}
 
+	s.invalidateCache(ctx)
 	return nil
 }
 
 func (s *ProductService) DeleteProduct(ctx context.Context, id int64) error {
-	err := s.productRepo.DeleteProduct(ctx, id)
-	if err != nil {
+	if err := s.productRepo.DeleteProduct(ctx, id); err != nil {
 		return fmt.Errorf("gagal menghapus produk (ID: %d): %w", id, err)
 	}
+	s.invalidateCache(ctx)
 	return nil
 }
 
+// invalidateCache membuang seluruh varian cache daftar produk.
+//
+// Tanpa ini, admin mengubah harga tapi pelanggan masih melihat harga lama
+// sampai TTL habis — persis masalah yang ada sebelumnya.
+//
+// SCAN dipakai (bukan KEYS) supaya tidak memblokir Redis. Jumlah key di sini
+// kecil (kombinasi status × kategori), jadi biayanya tidak terasa.
+func (s *ProductService) invalidateCache(ctx context.Context) {
+	iter := s.redisClient.Scan(ctx, 0, productCachePrefix+"*", 100).Iterator()
+
+	keys := make([]string, 0, 16)
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		slog.Warn("product cache scan failed", "err", err)
+		return
+	}
+	if len(keys) == 0 {
+		return
+	}
+	if err := s.redisClient.Del(ctx, keys...).Err(); err != nil {
+		slog.Warn("product cache invalidate failed", "count", len(keys), "err", err)
+	}
+}
+
+// ============================================================================
+// Add-on
+// ============================================================================
+
 func (s *ProductAddOnService) GetAllProductsAddOn(ctx context.Context) ([]entity.ProductAddon, error) {
-	productsAddOn, err := s.repo.GetAllProductAddOn(ctx)
+	addons, err := s.repo.GetAllProductAddOn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("gagal mengambil daftar produkAddOn: %w", err)
 	}
-	return productsAddOn, nil
+	return addons, nil
 }
 
 func (s *ProductAddOnService) CreateProductAddOn(ctx context.Context, req request.CreateProductAddOnRequest) (*entity.ProductAddon, error) {
-	productAddOn := &entity.ProductAddon{
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+
+	addon := &entity.ProductAddon{
 		Name:     req.Name,
 		Price:    req.Price,
 		Stock:    req.Stock,
-		IsActive: true,
+		IsActive: isActive,
 	}
-	err := s.repo.CreateProductAddOn(ctx, productAddOn)
-	if err != nil {
-		return nil, fmt.Errorf("gagal menyimpan produk ke database: %w", err)
+	if err := s.repo.CreateProductAddOn(ctx, addon); err != nil {
+		return nil, fmt.Errorf("gagal menyimpan add-on ke database: %w", err)
 	}
-	return productAddOn, nil
+	return addon, nil
 }
 
 func (s *ProductAddOnService) UpdateProductAddOn(ctx context.Context, id int64, req request.UpdateProductAddOnRequest) error {
-	existingProduct, err := s.repo.GetProductAddOnByID(ctx, id)
+	existing, err := s.repo.GetProductAddOnByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("produk dengan ID %d tidak ditemukan: %w", id, err)
+		return fmt.Errorf("add-on dengan ID %d tidak ditemukan: %w", id, err)
 	}
 
 	if req.Name != nil {
-		existingProduct.Name = *req.Name
+		existing.Name = *req.Name
 	}
-
 	if req.Price != nil {
-		existingProduct.Price = *req.Price
+		existing.Price = *req.Price
 	}
-
 	if req.Stock != nil {
-		existingProduct.Stock = *req.Stock
+		existing.Stock = *req.Stock
+	}
+	if req.IsActive != nil {
+		existing.IsActive = *req.IsActive
 	}
 
-	if req.Is_Active != nil {
-		existingProduct.IsActive = *req.Is_Active
+	if err := s.repo.UpdateProductAddOn(ctx, &existing); err != nil {
+		return fmt.Errorf("gagal mengupdate add-on (ID: %d): %w", id, err)
 	}
-
-	err = s.repo.UpdateProductAddOn(ctx, &existingProduct)
-
-	if err != nil {
-		return fmt.Errorf("gagal mengupdate produk (ID: %d) : %w", id, err)
-	}
-
 	return nil
 }
 
 func (s *ProductAddOnService) DeleteProductAddOn(ctx context.Context, id int64) error {
-	err := s.repo.DeleteProductAddOn(ctx, id)
-	if err != nil {
+	if err := s.repo.DeleteProductAddOn(ctx, id); err != nil {
 		return fmt.Errorf("gagal menghapus add on (ID: %d): %w", id, err)
 	}
 	return nil
